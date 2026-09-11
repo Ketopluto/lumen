@@ -1,0 +1,5 @@
+.browse-page__sources { display:flex; gap:var(--space-2); margin-bottom:var(--space-2); overflow-x:auto; padding-bottom:var(--space-2); }
+.source-tab { display:flex; align-items:center; gap:var(--space-2); padding:var(--space-2) var(--space-4); border-radius:var(--radius-xl); font-size:var(--font-size-sm); font-weight:var(--font-weight-medium); color:var(--color-text-secondary); background:var(--color-surface); border:1px solid var(--color-border); transition:all var(--transition-base); cursor:pointer; white-space:nowrap; }
+.source-tab:hover { background:var(--color-surface-hover); color:var(--color-text-primary); border-color:var(--color-border-hover); }
+.source-tab--active { background:var(--color-accent-subtle); color:var(--color-accent); border-color:var(--color-border-accent); }
+.browse-page__suggestions { display:flex; gap:var(--space-1); flex-wrap:wrap; margin-bottom:var(--space-4); }

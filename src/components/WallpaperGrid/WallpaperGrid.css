@@ -1,0 +1,44 @@
+.wp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  padding-bottom: var(--space-8);
+}
+
+.wp-grid__item {
+  animation: fadeInUp 400ms ease backwards;
+  /* Off-screen cards skip layout/paint, keeping long infinite-scroll lists smooth. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 240px;
+}
+
+.wp-grid__sentinel {
+  height: 1px;
+}
+
+.wp-grid__end {
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  padding-bottom: var(--space-8);
+}
+
+.wp-grid__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16) var(--space-4);
+  animation: fadeIn 500ms ease;
+}
+
+.wp-grid__empty-icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-4);
+  opacity: 0.5;
+}
+
+.wp-grid__empty-text {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-lg);
+}
