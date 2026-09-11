@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { Sidebar } from './Sidebar';
 import { Titlebar } from './Titlebar';
 import ToastContainer from '../common/Toast';
+import { NowPlaying } from '../NowPlaying/NowPlaying';
 import { api, applyTheme } from '../../api';
 import { useAppStore } from '../../store/appStore';
 import './Layout.css';
@@ -29,9 +30,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <Titlebar />
       <div className="layout__body">
         <Sidebar />
-        <main className="layout__content">
-          <div className="layout__content-inner">{children}</div>
-        </main>
+        <div className="layout__main">
+          <main className="layout__content">
+            <div className="layout__content-inner">{children}</div>
+          </main>
+          <NowPlaying />
+        </div>
       </div>
       <ToastContainer />
     </div>

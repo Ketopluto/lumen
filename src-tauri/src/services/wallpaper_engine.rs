@@ -185,8 +185,8 @@ pub fn set_live(app: &AppHandle, path: &str) -> Result<(), String> {
         // pull focus out of a fullscreen game when a slideshow or startup restore sets a live wallpaper.
         let hwnd = window.hwnd().map_err(|e| e.to_string())?;
         if let Err(e) = unsafe { desktop::attach(hwnd.0 as isize) } {
+            // Keep `current` set: the watchdog retries (e.g. while Explorer is restarting).
             let _ = window.destroy();
-            state.set_current(None);
             return Err(e);
         }
         broadcast_live(app);
@@ -233,21 +233,55 @@ pub fn restore_live(app: &AppHandle) {
 }
 
 /// Background thread that pauses the live wallpaper while a fullscreen app runs or on battery.
+/// It is also the live wallpaper's watchdog: Explorer restarts and display changes can destroy the
+/// desktop windows (taking the player with them), so the player is re-created, re-attached and
+/// re-fitted as needed — a live wallpaper only stops when the user stops it.
 pub fn spawn_pause_monitor(app: AppHandle) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(std::time::Duration::from_secs(2));
-        let state = app.state::<LiveState>();
-        if state.current().is_none() {
-            continue;
+    std::thread::spawn(move || {
+        let mut missing_ticks = 0u32;
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            let state = app.state::<LiveState>();
+            let Some(path) = state.current() else {
+                missing_ticks = 0;
+                continue;
+            };
+            match app.get_webview_window(LIVE_LABEL) {
+                None => {
+                    missing_ticks += 1;
+                    // Skip one tick (the window may be mid-creation), then retry every ~10s.
+                    if missing_ticks == 2 || missing_ticks % 5 == 0 {
+                        match set_live(&app, &path) {
+                            Ok(()) => log::info!("Live wallpaper restored after the desktop was rebuilt"),
+                            Err(e) => log::warn!("Live wallpaper watchdog: {}", e),
+                        }
+                    }
+                    continue;
+                }
+                Some(_window) => {
+                    missing_ticks = 0;
+                    #[cfg(target_os = "windows")]
+                    if let Ok(hwnd) = _window.hwnd() {
+                        unsafe { desktop::keep_fitted(hwnd.0 as isize) };
+                    }
+                }
+            }
+            pause_tick(&app);
         }
+    });
+}
+
+fn pause_tick(app: &AppHandle) {
+    let state = app.state::<LiveState>();
+    {
         let settings = app.state::<Arc<Database>>().settings();
         let auto = (settings.pause_on_fullscreen && desktop::fullscreen_app_active())
             || (settings.pause_on_battery && desktop::on_battery());
         state.auto_paused.store(auto, Ordering::Relaxed);
-        if sync_pause(&app) {
-            broadcast_live(&app);
+        if sync_pause(app) {
+            broadcast_live(app);
         }
-    });
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -337,6 +371,23 @@ mod desktop {
         }
         let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
         Ok(())
+    }
+
+    /// Re-attaches the player if it lost its desktop parent, and keeps it covering every monitor
+    /// (the virtual screen changes with resolution or monitor changes).
+    pub unsafe fn keep_fitted(raw: isize) {
+        let hwnd = HWND(raw as *mut c_void);
+        let attached = matches!(GetParent(hwnd), Ok(p) if !p.0.is_null() && IsWindow(p).as_bool());
+        if !attached {
+            let _ = attach(raw);
+            return;
+        }
+        let cx = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        let cy = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+        let mut rect = RECT::default();
+        if GetClientRect(hwnd, &mut rect).is_ok() && (rect.right != cx || rect.bottom != cy) {
+            let _ = SetWindowPos(hwnd, HWND::default(), 0, 0, cx, cy, SWP_NOACTIVATE | SWP_NOZORDER);
+        }
     }
 
     /// Finds the WorkerW that follows the top-level window hosting SHELLDLL_DefView.

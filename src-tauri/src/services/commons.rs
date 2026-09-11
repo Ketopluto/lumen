@@ -82,14 +82,16 @@ impl CommonsService {
     }
 
     pub async fn search_videos(params: &SearchParams) -> Result<SearchResult, String> {
-        let q = params.query().unwrap_or("timelapse");
-        let search = format!("{} filetype:video filew:>1279", q);
+        // Time-lapse footage only: a plain video search returns interviews and lectures.
+        // CIRA's satellite weather loops are excluded too (they're mostly labeled maps).
+        let q = params.query().unwrap_or("sky OR clouds OR sunset OR aurora OR stars");
+        let search = format!("{} -CIRA filetype:video filew:>1279 deepcat:\"Time-lapse videos\"", q);
         Self::run(params, &search, "videoinfo", "viprop=url|size|mime|derivatives&viurlwidth=640").await
     }
 
     async fn run(params: &SearchParams, search: &str, prop: &str, prop_args: &str) -> Result<SearchResult, String> {
         let page = params.page();
-        let sort = if params.query().is_some() { "relevance" } else { "create_timestamp_desc" };
+        let sort = if params.query().is_some() || prop == "videoinfo" { "relevance" } else { "create_timestamp_desc" };
         let url = format!(
             "{}?action=query&format=json&formatversion=2&generator=search&gsrnamespace=6&gsrlimit={}&gsroffset={}&gsrsort={}&gsrsearch={}&prop={}&{}",
             COMMONS_API,

@@ -33,7 +33,8 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             fit_mode: FitMode::Fill,
-            start_on_boot: false,
+            // A live wallpaper should survive reboots, so Lumen starts with Windows by default.
+            start_on_boot: true,
             minimize_to_tray: true,
             download_dir: crate::utils::default_download_dir().to_string_lossy().to_string(),
             max_history: 500,
@@ -42,7 +43,7 @@ impl Default for AppSettings {
             pexels_api_key: None,
             theme: ThemePreference::Dark,
             live_wallpaper_volume: 0,
-            pause_on_battery: true,
+            pause_on_battery: false,
             pause_on_fullscreen: true,
         }
     }

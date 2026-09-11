@@ -6,49 +6,104 @@ import { ImagePreview } from '../../components/ImagePreview/ImagePreview';
 import { api, errorText, type Wallpaper } from '../../api';
 import './BrowsePage.css';
 
-interface SourceDef {
+interface Provider {
+  id: string;
+  label: string;
+  /** Search box placeholder; no search box when absent. */
+  placeholder?: string;
+  suggestions?: string[];
+  /** 'full' = sort, period, size and categories; 'basic' = without categories. */
+  filters?: 'full' | 'basic';
+}
+
+interface Category {
   id: string;
   label: string;
   note: string;
-  search?: boolean;
-  suggestions?: string[];
+  providers: Provider[];
 }
 
-const SOURCES: SourceDef[] = [
-  { id: 'wallhaven', label: 'Wallhaven', note: '600k+ wallpapers', search: true,
-    suggestions: ['nature', 'space', 'anime', 'city', 'minimalist', 'cyberpunk', 'mountains', 'cars', 'ocean'] },
-  { id: 'anime', label: 'Anime', note: '110k+ anime wallpapers', search: true,
-    suggestions: ['lookism', 'solo leveling', 'jujutsu kaisen', 'demon slayer', 'one piece', 'chainsaw man', 'naruto', 'attack on titan', 'dragon ball'] },
-  { id: 'konachan', label: 'Konachan', note: 'Anime art board', search: true,
-    suggestions: ['scenic', 'sky', 'night', 'city', 'original', 'genshin impact', 'touhou'] },
-  { id: 'live', label: 'Live', note: 'Video wallpapers', search: true,
-    suggestions: ['timelapse', 'ocean waves', 'clouds', 'aurora', 'rain', 'waterfall', 'stars', 'city night', 'fire'] },
-  { id: 'commons', label: 'Wikimedia', note: 'Award-winning photos', search: true,
-    suggestions: ['landscape', 'mountain', 'sunset', 'forest', 'beach', 'lake', 'architecture', 'wildlife'] },
-  { id: 'nasa', label: 'NASA', note: 'Space imagery', search: true,
-    suggestions: ['galaxy', 'nebula', 'earth', 'mars', 'jupiter', 'hubble', 'webb', 'aurora'] },
-  { id: 'bing', label: 'Bing Daily', note: 'Last 16 days' },
-  { id: 'unsplash', label: 'Unsplash', note: 'Needs free key', search: true,
-    suggestions: ['nature', 'dark', 'abstract', 'architecture', 'mountains'] },
-  { id: 'pexels', label: 'Pexels', note: 'Needs free key', search: true,
-    suggestions: ['nature', 'abstract', 'city', 'ocean', 'forest'] },
-  { id: 'pexels_video', label: 'Pexels Video', note: 'Needs free key', search: true,
-    suggestions: ['nature', 'ocean', 'abstract', 'city', 'space', 'rain'] },
+// Grouped by what people are looking for, not by which website it comes from.
+const CATEGORIES: Category[] = [
+  {
+    id: 'discover',
+    label: 'Discover',
+    note: 'Popular wallpapers from Wallhaven',
+    providers: [
+      { id: 'wallhaven', label: 'Wallhaven', filters: 'full', placeholder: 'Search 600,000+ wallpapers',
+        suggestions: ['nature', 'space', 'city', 'minimalist', 'cyberpunk', 'mountains', 'cars', 'ocean', 'dark'] },
+    ],
+  },
+  {
+    id: 'anime',
+    label: 'Anime',
+    note: 'Anime wallpapers',
+    providers: [
+      { id: 'anime', label: 'Wallhaven', filters: 'basic', placeholder: 'Search a series or character',
+        suggestions: ['lookism', 'solo leveling', 'jujutsu kaisen', 'demon slayer', 'one piece', 'chainsaw man', 'naruto', 'attack on titan', 'dragon ball'] },
+      { id: 'konachan', label: 'Konachan', placeholder: 'Search a tag, like scenic or sky',
+        suggestions: ['scenic', 'sky', 'night', 'city', 'original', 'genshin impact', 'touhou'] },
+    ],
+  },
+  {
+    id: 'live',
+    label: 'Live',
+    note: 'Moving wallpapers that play behind your icons',
+    providers: [
+      { id: 'live', label: 'Wikimedia', placeholder: 'Search time-lapse videos',
+        suggestions: ['aurora', 'clouds', 'sunset', 'stars', 'city', 'storm', 'ocean', 'mountains'] },
+      { id: 'pexels_video', label: 'Pexels', placeholder: 'Search Pexels videos',
+        suggestions: ['nature', 'ocean', 'abstract', 'city', 'space', 'rain'] },
+    ],
+  },
+  {
+    id: 'photos',
+    label: 'Photos',
+    note: 'Award-winning photography',
+    providers: [
+      { id: 'commons', label: 'Wikimedia', placeholder: 'Search featured photos',
+        suggestions: ['landscape', 'mountain', 'sunset', 'forest', 'beach', 'lake', 'architecture', 'wildlife'] },
+      { id: 'unsplash', label: 'Unsplash', placeholder: 'Search Unsplash',
+        suggestions: ['nature', 'dark', 'abstract', 'architecture', 'mountains'] },
+      { id: 'pexels', label: 'Pexels', placeholder: 'Search Pexels',
+        suggestions: ['nature', 'abstract', 'city', 'ocean', 'forest'] },
+    ],
+  },
+  {
+    id: 'space',
+    label: 'Space',
+    note: "NASA's image library",
+    providers: [
+      { id: 'nasa', label: 'NASA', placeholder: 'Search NASA images',
+        suggestions: ['galaxy', 'nebula', 'earth', 'mars', 'jupiter', 'hubble', 'webb', 'aurora'] },
+    ],
+  },
+  {
+    id: 'daily',
+    label: 'Daily',
+    note: "Bing's photo of the day, from the last 16 days",
+    providers: [{ id: 'bing', label: 'Bing' }],
+  },
 ];
 
 const SORTS = [
   { id: 'toplist', label: 'Top' },
-  { id: 'hot', label: 'Hot' },
-  { id: 'date_added', label: 'Latest' },
+  { id: 'hot', label: 'Trending' },
+  { id: 'date_added', label: 'Newest' },
   { id: 'random', label: 'Random' },
-  { id: 'favorites', label: 'Most liked' },
+  { id: 'favorites', label: 'Most favorited' },
 ];
 const RANGES = [
   { id: '1w', label: 'Week' },
   { id: '1M', label: 'Month' },
   { id: '1y', label: 'Year' },
 ];
-const RESOLUTIONS = ['', '1920x1080', '2560x1440', '3840x2160'];
+const RESOLUTIONS = [
+  { id: '', label: 'Any' },
+  { id: '1920x1080', label: 'Full HD or larger' },
+  { id: '2560x1440', label: '2K or larger' },
+  { id: '3840x2160', label: '4K' },
+];
 const CATEGORY_LABELS = ['General', 'Anime', 'People'];
 
 interface Filters {
@@ -71,10 +126,30 @@ interface BrowseState {
 const EMPTY: BrowseState = { items: [], page: 0, hasMore: true, seed: null, error: null };
 
 // Survives navigating to other pages and back, so browsing doesn't restart.
-let cache: { filters: Filters; state: BrowseState } | null = null;
+let cache: { category: string; providers: Record<string, string>; filters: Filters; state: BrowseState } | null = null;
+
+const Select: React.FC<{
+  label: string;
+  value: string;
+  options: { id: string; label: string }[];
+  onChange: (value: string) => void;
+}> = ({ label, value, options, onChange }) => (
+  <label className="select-field">
+    <span>{label}</span>
+    <select className="select" value={value} onChange={(e) => onChange(e.target.value)}>
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  </label>
+);
 
 export const BrowsePage: React.FC = () => {
   const navigate = useNavigate();
+  const [category, setCategory] = useState(cache?.category ?? 'discover');
+  const [providerByCategory, setProviderByCategory] = useState<Record<string, string>>(cache?.providers ?? {});
   const [filters, setFilters] = useState<Filters>(
     () =>
       cache?.filters ?? { source: 'wallhaven', query: '', sorting: 'toplist', topRange: '1M', categories: '111', resolution: '' },
@@ -89,7 +164,8 @@ export const BrowsePage: React.FC = () => {
   stateRef.current = state;
   const loadingRef = useRef(false);
 
-  const source = SOURCES.find((s) => s.id === filters.source) ?? SOURCES[0];
+  const cat = CATEGORIES.find((c) => c.id === category) ?? CATEGORIES[0];
+  const provider = cat.providers.find((p) => p.id === filters.source) ?? cat.providers[0];
 
   const fetchPage = useCallback(
     async (reset: boolean) => {
@@ -145,8 +221,8 @@ export const BrowsePage: React.FC = () => {
   }, [fetchPage]);
 
   useEffect(() => {
-    cache = { filters, state };
-  }, [filters, state]);
+    cache = { category, providers: providerByCategory, filters, state };
+  }, [category, providerByCategory, filters, state]);
 
   const loadMore = useCallback(() => {
     if (!loadingRef.current && stateRef.current.hasMore) fetchPage(false);
@@ -158,6 +234,18 @@ export const BrowsePage: React.FC = () => {
     update({ query: q.trim() });
   };
 
+  /** Switch category (remembering which source was last used in it) and/or source. */
+  const choose = (categoryId: string, providerId?: string) => {
+    const next = CATEGORIES.find((c) => c.id === categoryId) ?? CATEGORIES[0];
+    const pid = providerId ?? providerByCategory[categoryId] ?? next.providers[0].id;
+    setCategory(categoryId);
+    setProviderByCategory((m) => ({ ...m, [categoryId]: pid }));
+    if (pid !== filters.source) {
+      setInput('');
+      update({ source: pid, query: '' });
+    }
+  };
+
   const categoryMask = filters.categories.split('');
   const toggleCategory = (i: number) => {
     const next = [...categoryMask];
@@ -166,105 +254,84 @@ export const BrowsePage: React.FC = () => {
   };
 
   const needsKey = useMemo(() => state.error?.includes('API key') ?? false, [state.error]);
+  const emptyMessage = state.error
+    ? 'Nothing to show'
+    : filters.query
+      ? `No results for “${filters.query}”. Try a shorter search, or switch the source above.`
+      : 'Nothing here yet';
 
   return (
-    <div className="browse-page page-enter">
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">
-            <span className="gradient-text">Browse</span> Wallpapers
-          </h1>
-          <p className="page-subtitle">{source.note}</p>
-        </div>
-        {source.search && (
-          <SearchBar value={input} onChange={setInput} onSearch={search} placeholder={`Search ${source.label}…`} />
+    <div className="browse page-enter">
+      <header className="browse__head">
+        <nav className="browse__tabs" role="tablist" aria-label="Wallpaper type">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.id}
+              role="tab"
+              aria-selected={c.id === category}
+              className={`browse__tab ${c.id === category ? 'is-active' : ''}`}
+              onClick={() => choose(c.id)}
+            >
+              {c.label}
+            </button>
+          ))}
+        </nav>
+        {provider.placeholder ? (
+          <div className="browse__search">
+            <SearchBar value={input} onChange={setInput} onSearch={search} placeholder={provider.placeholder} />
+          </div>
+        ) : (
+          <p className="browse__note">{cat.note}</p>
         )}
-      </div>
+      </header>
 
-      <div className="browse-page__sources">
-        {SOURCES.map((src) => (
-          <button
-            key={src.id}
-            className={`source-tab ${filters.source === src.id ? 'source-tab--active' : ''}`}
-            onClick={() => {
-              if (src.id === filters.source) return;
-              setInput('');
-              update({ source: src.id, query: '' });
-            }}
-          >
-            {src.label}
-          </button>
-        ))}
-      </div>
-
-      {(filters.source === 'wallhaven' || filters.source === 'anime') && (
-        <div className="filter-panel">
-          <div className="filter-group">
-            <span className="filter-label">Sort</span>
-            <div className="filter-chips">
-              {SORTS.map((s) => (
+      {(cat.providers.length > 1 || provider.filters) && (
+        <div className="browse__toolbar">
+          {cat.providers.length > 1 && (
+            <div className="segmented" role="radiogroup" aria-label="Source">
+              <span className="segmented__label">From</span>
+              {cat.providers.map((p) => (
                 <button
-                  key={s.id}
-                  className={`filter-chip ${filters.sorting === s.id ? 'filter-chip--active' : ''}`}
-                  onClick={() => update({ sorting: s.id })}
+                  key={p.id}
+                  role="radio"
+                  aria-checked={p.id === provider.id}
+                  className={`segmented__item ${p.id === provider.id ? 'is-active' : ''}`}
+                  onClick={() => choose(category, p.id)}
                 >
-                  {s.label}
+                  {p.label}
                 </button>
               ))}
             </div>
-          </div>
-          {filters.sorting === 'toplist' && (
-            <div className="filter-group">
-              <span className="filter-label">Period</span>
-              <div className="filter-chips">
-                {RANGES.map((r) => (
-                  <button
-                    key={r.id}
-                    className={`filter-chip ${filters.topRange === r.id ? 'filter-chip--active' : ''}`}
-                    onClick={() => update({ topRange: r.id })}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
+          )}
+          {provider.filters && (
+            <div className="browse__filters">
+              <Select label="Sort" value={filters.sorting} options={SORTS} onChange={(v) => update({ sorting: v })} />
+              {filters.sorting === 'toplist' && (
+                <Select label="Past" value={filters.topRange} options={RANGES} onChange={(v) => update({ topRange: v })} />
+              )}
+              <Select label="Size" value={filters.resolution} options={RESOLUTIONS} onChange={(v) => update({ resolution: v })} />
+              {provider.filters === 'full' && (
+                <div className="browse__toggles" role="group" aria-label="Include">
+                  {CATEGORY_LABELS.map((c, i) => (
+                    <button
+                      key={c}
+                      aria-pressed={categoryMask[i] === '1'}
+                      className={`filter-chip ${categoryMask[i] === '1' ? 'filter-chip--active' : ''}`}
+                      onClick={() => toggleCategory(i)}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-          {filters.source === 'wallhaven' && (
-            <div className="filter-group">
-              <span className="filter-label">Categories</span>
-              <div className="filter-chips">
-                {CATEGORY_LABELS.map((c, i) => (
-                  <button
-                    key={c}
-                    className={`filter-chip ${categoryMask[i] === '1' ? 'filter-chip--active' : ''}`}
-                    onClick={() => toggleCategory(i)}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="filter-group">
-            <span className="filter-label">Min resolution</span>
-            <div className="filter-chips">
-              {RESOLUTIONS.map((r) => (
-                <button
-                  key={r || 'any'}
-                  className={`filter-chip ${filters.resolution === r ? 'filter-chip--active' : ''}`}
-                  onClick={() => update({ resolution: r })}
-                >
-                  {r ? r.replace('1920x1080', 'HD').replace('2560x1440', '2K').replace('3840x2160', '4K') : 'Any'}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
-      {source.suggestions && (
-        <div className="browse-page__suggestions">
-          {source.suggestions.map((s) => (
+      {provider.suggestions && (
+        <div className="browse__suggestions" aria-label="Quick searches">
+          {provider.suggestions.map((s) => (
             <button
               key={s}
               className={`filter-chip ${filters.query === s ? 'filter-chip--active' : ''}`}
@@ -285,7 +352,7 @@ export const BrowsePage: React.FC = () => {
             </button>
           ) : (
             <button className="btn btn--glass" onClick={() => fetchPage(state.items.length === 0)}>
-              Retry
+              Try again
             </button>
           )}
         </div>
@@ -297,7 +364,7 @@ export const BrowsePage: React.FC = () => {
         hasMore={state.hasMore && !state.error}
         onLoadMore={loadMore}
         onOpen={(_, i) => setPreviewIndex(i)}
-        emptyMessage={state.error ? 'Nothing to show' : 'No wallpapers matched — try another search'}
+        emptyMessage={emptyMessage}
       />
 
       {previewIndex !== null && state.items[previewIndex] && (

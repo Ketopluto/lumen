@@ -39,7 +39,19 @@ export const WallpaperGrid: React.FC<WallpaperGridProps> = ({
   if (!loading && wallpapers.length === 0) {
     return (
       <div className="wp-grid__empty">
-        <div className="wp-grid__empty-icon">🖼️</div>
+        <svg
+          className="wp-grid__empty-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M3 15l5-5 4 4 3-3 6 6" />
+        </svg>
         <p className="wp-grid__empty-text">{emptyMessage}</p>
       </div>
     );
@@ -56,13 +68,8 @@ export const WallpaperGrid: React.FC<WallpaperGridProps> = ({
         {loading &&
           Array.from({ length: wallpapers.length === 0 ? 12 : 4 }).map((_, i) => (
             <div key={`skel-${i}`} className="wp-grid__item">
-              <div className="wp-card glass-panel">
-                <div className="wp-card__image-wrapper">
-                  <div className="skeleton" style={{ width: '100%', height: '100%' }} />
-                </div>
-                <div style={{ padding: '8px 12px' }}>
-                  <div className="skeleton" style={{ width: '60%', height: '12px' }} />
-                </div>
+              <div className="wp-card" aria-hidden="true">
+                <div className="wp-card__skeleton skeleton" />
               </div>
             </div>
           ))}

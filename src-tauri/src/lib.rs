@@ -141,9 +141,25 @@ pub fn run() {
             use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
             // Local files the UI may display: thumbnails, downloads, and watched folders.
+            // One-time move to the persistent defaults (start with Windows, keep playing on battery)
+            // for settings saved before they existed. Later changes in Settings are respected.
+            if db.get_setting("persistence_defaults").ok().flatten().is_none() {
+                let mut s = db.settings();
+                s.start_on_boot = true;
+                s.pause_on_battery = false;
+                let _ = db.save_settings(&s);
+                let _ = db.set_setting("persistence_defaults", "1");
+            }
+            let settings = db.settings();
+            // Keep the startup entry pointing at this exe (it moves when Lumen is reinstalled).
+            // Debug builds skip this so a dev build never registers itself.
+            #[cfg(not(debug_assertions))]
+            if let Err(e) = wallpaper_engine::set_autostart(settings.start_on_boot) {
+                log::warn!("Could not update start-with-Windows: {}", e);
+            }
+
             let scope = app.asset_protocol_scope();
             let _ = scope.allow_directory(utils::thumbnails_dir(), false);
-            let settings = db.settings();
             let _ = std::fs::create_dir_all(&settings.download_dir);
             let _ = scope.allow_directory(&settings.download_dir, true);
             for folder in db.get_watched_folders().unwrap_or_default() {
@@ -154,7 +170,7 @@ pub fn run() {
             let pause_live = MenuItem::with_id(app, "pause_live", "Pause / resume live wallpaper", true, None::<&str>)?;
             let stop_live = MenuItem::with_id(app, "stop_live", "Stop live wallpaper", true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit (stops live wallpaper)", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &pause_live, &stop_live, &separator, &quit_item])?;
 
             TrayIconBuilder::with_id("main")

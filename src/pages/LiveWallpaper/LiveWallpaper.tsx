@@ -57,6 +57,26 @@ export default function LiveWallpaper() {
     }
   }, [paused, volume, path]);
 
+  // Self-heal: Chromium can pause media while the desktop is covered or after sleep. Resume it,
+  // so the wallpaper never just stops on its own.
+  useEffect(() => {
+    const kick = () => {
+      const video = videoRef.current;
+      if (video && !paused && video.paused) {
+        video.play().catch(() => {
+          video.muted = true;
+          video.play().catch(() => {});
+        });
+      }
+    };
+    const timer = window.setInterval(kick, 4000);
+    document.addEventListener('visibilitychange', kick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', kick);
+    };
+  }, [paused]);
+
   if (!path) return <div style={fill} />;
 
   const src = fileSrc(path);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fileSrc, isRemote, SOURCE_LABELS, type Wallpaper } from '../../api';
+import { displayTitle, fileSrc, isRemote, SOURCE_LABELS, type Wallpaper } from '../../api';
 import { useThumbSrc } from '../../hooks';
 import { useAppStore } from '../../store/appStore';
 import './ImagePreview.css';
@@ -38,10 +38,13 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ items, index, onInde
       if (e.key === 'Escape') onClose();
       else if (e.key === 'ArrowRight' && index < items.length - 1) onIndexChange(index + 1);
       else if (e.key === 'ArrowLeft' && index > 0) onIndexChange(index - 1);
+      // Enter sets it — unless a button has focus (it already handles Enter itself).
+      else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement || e.target instanceof HTMLSelectElement))
+        useAppStore.getState().apply(wallpaper);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [index, items.length, onClose, onIndexChange]);
+  }, [index, items.length, onClose, onIndexChange, wallpaper]);
 
   return (
     <div className="preview-overlay" onClick={onClose}>
@@ -103,7 +106,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ items, index, onInde
 
         <div className="preview-info glass-panel">
           <div className="preview-meta">
-            <h3 className="preview-title truncate">{wallpaper.title || 'Untitled'}</h3>
+            <h3 className="preview-title truncate">{displayTitle(wallpaper) || 'Untitled'}</h3>
             <p className="preview-resolution">
               {wallpaper.width && wallpaper.height ? `${wallpaper.width}×${wallpaper.height} · ` : ''}
               {SOURCE_LABELS[wallpaper.source] ?? wallpaper.source}

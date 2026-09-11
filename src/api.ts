@@ -112,7 +112,9 @@ export interface SlideshowConfig {
 
 export interface LiveStatus {
   path: string | null;
+  /** Effective state: paused by the user or automatically (fullscreen app / battery). */
   paused: boolean;
+  manual_paused: boolean;
   volume: number;
 }
 
@@ -122,6 +124,7 @@ export const api = {
   setWallpaper: (wallpaper: Wallpaper, fitMode?: FitMode) => invoke<string>('set_wallpaper', { wallpaper, fitMode }),
   downloadWallpaper: (wallpaper: Wallpaper) => invoke<string>('download_wallpaper', { wallpaper }),
   stopLive: () => invoke<void>('stop_live_wallpaper'),
+  setLivePaused: (paused: boolean) => invoke<void>('set_live_paused', { paused }),
   liveStatus: () => invoke<LiveStatus>('get_live_status'),
 
   getFavorites: (collectionId?: string | null) => invoke<Favorite[]>('get_favorites', { collectionId: collectionId ?? null }),
@@ -187,6 +190,13 @@ export function fromHistory(h: HistoryEntry): Wallpaper {
     title: h.title,
     media_type: h.media_type,
   };
+}
+
+/** Human-friendly title: local files lose their extension and underscores. */
+export function displayTitle(w: Pick<Wallpaper, 'title' | 'source'>): string | null {
+  if (!w.title) return null;
+  if (w.source !== 'local') return w.title;
+  return w.title.replace(/\.[a-z0-9]{2,5}$/i, '').replace(/[_-]+/g, ' ').trim() || w.title;
 }
 
 export function applyTheme(theme: Theme) {

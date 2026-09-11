@@ -75,7 +75,7 @@ export const LocalPage: React.FC = () => {
       <div className="page-header">
         <div>
           <h1 className="page-title">
-            <span className="gradient-text">Local</span> Wallpapers
+            <span className="gradient-text">My files</span>
           </h1>
           <p className="page-subtitle truncate">{selected || 'Your images and videos'}</p>
         </div>
