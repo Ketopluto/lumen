@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="WPE-Alt app icon">
-  <rect x="112" y="112" width="800" height="800" rx="188" fill="#121212"/>
-  <path d="M300 362h424v250H300z" fill="none" stroke="#f4efe6" stroke-width="46" stroke-linejoin="round"/>
-  <path d="M356 552 446 462l76 76 58-58 92 92" fill="none" stroke="#f4efe6" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="650" cy="430" r="26" fill="#b9c7a4"/>
-  <path d="M512 612v92M420 724h184" fill="none" stroke="#f4efe6" stroke-width="46" stroke-linecap="round"/>
-</svg>
