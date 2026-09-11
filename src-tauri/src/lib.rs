@@ -199,13 +199,16 @@ pub fn run() {
                 create_main(app.handle())?;
             }
 
-            // Bring back whatever was running last session.
-            let handle = app.handle().clone();
-            let scheduler = scheduler.clone();
-            tauri::async_runtime::spawn(async move {
-                wallpaper_engine::restore_live(&handle);
-                scheduler.restore(handle.clone()).await;
-            });
+            // Bring back whatever was running last session — unless Lumen was started to open a
+            // file, which the old wallpaper would otherwise replace a moment later.
+            if !opened_file {
+                let handle = app.handle().clone();
+                let scheduler = scheduler.clone();
+                tauri::async_runtime::spawn(async move {
+                    wallpaper_engine::restore_live(&handle);
+                    scheduler.restore(handle.clone()).await;
+                });
+            }
             wallpaper_engine::spawn_pause_monitor(app.handle().clone());
 
             log::info!("Lumen started");
