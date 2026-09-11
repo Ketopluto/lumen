@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::Emitter;
 
-const USER_AGENT: &str = "Lumen/0.2 (https://github.com/Ketopluto/wpe-alt)";
+const USER_AGENT: &str = "Lumen/3.0 (https://github.com/Ketopluto/lumen)";
 
 /// Shared HTTP clients (connection pools are reused across calls).
 pub struct ApiClient;
