@@ -217,7 +217,7 @@ export const SettingsPage: React.FC = () => {
       <div className="settings-section glass-panel">
         <div className="settings-about">
           <p className="settings-about__name gradient-text">Lumen</p>
-          <p className="settings-about__version">Version 3.0.0</p>
+          <p className="settings-about__version">Version 3.0.1</p>
           <p className="settings-about__desc">A lightweight live wallpaper manager for Windows.</p>
         </div>
       </div>

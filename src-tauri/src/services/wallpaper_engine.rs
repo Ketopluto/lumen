@@ -144,6 +144,32 @@ pub fn set_static(app: &AppHandle, path: &str, fit: &FitMode) -> Result<(), Stri
     ::wallpaper::set_from_path(path).map_err(|e| format!("Failed to set wallpaper: {}", e))
 }
 
+/// Keep the playing file inside Lumen's own folder. Cloud folders (OneDrive) move files around or
+/// swap them for placeholders, which would make the wallpaper vanish later.
+fn stage_live_file(path: &str) -> Result<String, String> {
+    let dir = crate::utils::app_data_dir().join("live");
+    let src = Path::new(path);
+    if src.starts_with(&dir) {
+        return Ok(path.to_string());
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let name = src.file_name().ok_or("That file has no name")?;
+    let dest = dir.join(name);
+    let same_size = std::fs::metadata(&dest).map(|d| d.len()).ok() == std::fs::metadata(src).map(|s| s.len()).ok();
+    if !dest.is_file() || !same_size {
+        std::fs::copy(src, &dest).map_err(|e| format!("Could not copy the wallpaper into Lumen's folder: {}", e))?;
+    }
+    // Only one live wallpaper plays at a time, so drop anything staged earlier.
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            if entry.path() != dest {
+                let _ = std::fs::remove_file(entry.path());
+            }
+        }
+    }
+    Ok(dest.to_string_lossy().to_string())
+}
+
 pub fn set_live(app: &AppHandle, path: &str) -> Result<(), String> {
     #[cfg(not(target_os = "windows"))]
     {
@@ -157,6 +183,11 @@ pub fn set_live(app: &AppHandle, path: &str) -> Result<(), String> {
 
         let state = app.state::<LiveState>();
         let db = app.state::<Arc<Database>>();
+        if !Path::new(path).is_file() {
+            return Err("That file is not available right now".into());
+        }
+        let staged = stage_live_file(path)?;
+        let path = staged.as_str();
         app.asset_protocol_scope().allow_file(path).map_err(|e| e.to_string())?;
         state.set_current(Some(path.to_string()));
         state.manual_paused.store(false, Ordering::Relaxed);
@@ -218,17 +249,17 @@ pub fn stop_live(app: &AppHandle, refresh: bool) {
     }
 }
 
-/// Re-applies the live wallpaper that was active when the app last exited.
+/// Re-applies the live wallpaper that was active when Lumen last exited.
 pub fn restore_live(app: &AppHandle) {
     let db = app.state::<Arc<Database>>();
-    if let Ok(Some(path)) = db.get_setting(LIVE_SETTING_KEY) {
-        if Path::new(&path).is_file() {
-            if let Err(e) = set_live(app, &path) {
-                log::warn!("Could not restore live wallpaper: {}", e);
-            }
-        } else {
-            let _ = db.delete_setting(LIVE_SETTING_KEY);
-        }
+    let Ok(Some(path)) = db.get_setting(LIVE_SETTING_KEY) else {
+        return;
+    };
+    // Never drop the saved wallpaper here: at logon the desktop, a cloud folder or an external
+    // drive may simply not be ready yet, and the watchdog keeps trying.
+    match set_live(app, &path) {
+        Ok(()) => log::info!("live wallpaper started: {}", path),
+        Err(e) => log::warn!("live wallpaper not started yet ({}): {}", path, e),
     }
 }
 
@@ -239,13 +270,21 @@ pub fn restore_live(app: &AppHandle) {
 pub fn spawn_pause_monitor(app: AppHandle) {
     std::thread::spawn(move || {
         let mut missing_ticks = 0u32;
+        let mut idle_ticks = 0u32;
         loop {
             std::thread::sleep(std::time::Duration::from_secs(2));
             let state = app.state::<LiveState>();
             let Some(path) = state.current() else {
                 missing_ticks = 0;
+                idle_ticks += 1;
+                // A wallpaper saved earlier may not have started yet (at logon the desktop or a
+                // cloud folder can lag behind), so keep trying every ~10s.
+                if idle_ticks % 5 == 0 {
+                    restore_live(&app);
+                }
                 continue;
             };
+            idle_ticks = 0;
             match app.get_webview_window(LIVE_LABEL) {
                 None => {
                     missing_ticks += 1;
@@ -286,18 +325,27 @@ fn pause_tick(app: &AppHandle) {
 
 #[cfg(target_os = "windows")]
 pub fn set_autostart(enable: bool) -> Result<(), String> {
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_SET_VALUE};
+    // Only the Run key. Registering a scheduled task as well made Windows Defender's behaviour
+    // heuristics flag Lumen as malware (Behavior:Win32/Execution.A!ml) and quarantine it.
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE};
     use winreg::RegKey;
     let run = RegKey::predef(HKEY_CURRENT_USER)
-        .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", KEY_SET_VALUE)
+        .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", KEY_SET_VALUE | KEY_QUERY_VALUE)
         .map_err(|e| e.to_string())?;
-    // Entry left behind by the app's previous name.
-    let _ = run.delete_value("Vividwall");
+    let current = run.get_value::<String, _>("Lumen").ok();
     if enable {
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        run.set_value("Lumen", &format!("\"{}\" --minimized", exe.display()))
-            .map_err(|e| e.to_string())
+        let value = format!("\"{}\" --minimized", exe.display());
+        // Write only when it actually changes: rewriting an autostart entry on every launch is
+        // another pattern antivirus heuristics score against.
+        if current.as_deref() == Some(value.as_str()) {
+            return Ok(());
+        }
+        run.set_value("Lumen", &value).map_err(|e| e.to_string())
     } else {
+        if current.is_none() {
+            return Ok(());
+        }
         match run.delete_value("Lumen") {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),

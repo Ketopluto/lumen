@@ -4,6 +4,7 @@ pub mod commons;
 pub mod database;
 pub mod konachan;
 pub mod local;
+pub mod logging;
 pub mod nasa;
 pub mod pexels;
 pub mod scheduler;

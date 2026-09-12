@@ -80,6 +80,12 @@ fn quit(app: &AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     utils::migrate_legacy_data();
+    services::logging::init();
+    log::info!(
+        "Lumen {} starting (args: {})",
+        env!("CARGO_PKG_VERSION"),
+        std::env::args().skip(1).collect::<Vec<_>>().join(" ")
+    );
     let db = Arc::new(
         Database::new(&utils::app_data_dir().join("lumen.db")).expect("Failed to open the Lumen database"),
     );
@@ -140,7 +146,6 @@ pub fn run() {
             use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
             use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
-            // Local files the UI may display: thumbnails, downloads, and watched folders.
             // One-time move to the persistent defaults (start with Windows, keep playing on battery)
             // for settings saved before they existed. Later changes in Settings are respected.
             if db.get_setting("persistence_defaults").ok().flatten().is_none() {
@@ -154,10 +159,12 @@ pub fn run() {
             // Keep the startup entry pointing at this exe (it moves when Lumen is reinstalled).
             // Debug builds skip this so a dev build never registers itself.
             #[cfg(not(debug_assertions))]
-            if let Err(e) = wallpaper_engine::set_autostart(settings.start_on_boot) {
-                log::warn!("Could not update start-with-Windows: {}", e);
+            match wallpaper_engine::set_autostart(settings.start_on_boot) {
+                Ok(()) => log::info!("start with Windows: {}", settings.start_on_boot),
+                Err(e) => log::warn!("could not set start-with-Windows: {}", e),
             }
 
+            // Local files the UI may display: thumbnails, downloads and watched folders.
             let scope = app.asset_protocol_scope();
             let _ = scope.allow_directory(utils::thumbnails_dir(), false);
             let _ = std::fs::create_dir_all(&settings.download_dir);

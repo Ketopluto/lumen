@@ -5,8 +5,8 @@ A lightweight live wallpaper app for Windows. Browse 600,000+ wallpapers, anime 
 ## Download
 
 1. Go to the [latest release](https://github.com/Ketopluto/lumen/releases/latest).
-2. Download **`Lumen_3.0.0_x64-setup.exe`** and run it. Lumen installs for your user only (no admin needed) and adds Start menu and desktop shortcuts.
-   - Prefer not to install? Download **`Lumen_3.0.0_x64_portable.exe`** and run it directly.
+2. Download **`Lumen_3.0.1_x64-setup.exe`** and run it. Lumen installs for your user only (no admin needed) and adds Start menu and desktop shortcuts.
+   - Prefer not to install? Download **`Lumen_3.0.1_x64_portable.exe`** and run it directly.
 3. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway**. Lumen isn't code-signed yet, so SmartScreen doesn't recognize it.
 
 Requires 64-bit Windows 10 or 11. Lumen uses Microsoft Edge WebView2, which Windows 11 already includes; on older systems the installer adds it if it's missing.
