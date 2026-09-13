@@ -52,9 +52,9 @@
   --color-border-accent: rgba(99, 102, 241, 0.4);
 
   /* Typography */
-  --font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'Cascadia Mono', Consolas, monospace;
+  --font-family: system-ui, sans-serif;
+  --font-display: system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
   --font-size-xs: 0.6875rem;    /* 11px */
   --font-size-sm: 0.75rem;      /* 12px */
   --font-size-md: 0.8125rem;    /* 13px */
@@ -524,4 +524,23 @@ body.theme-transitioning,
 body.theme-transitioning * {
   transition-duration: 300ms !important;
   transition-timing-function: ease !important;
+}
+
+/* Each platform's own faces. data-os is set before the first paint (src/platform.ts). */
+:root[data-os='windows'] {
+  --font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, monospace;
+}
+
+:root[data-os='macos'] {
+  --font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif;
+  --font-display: -apple-system, 'SF Pro Display', system-ui, sans-serif;
+  --font-mono: 'SF Mono', Menlo, monospace;
+}
+
+:root[data-os='linux'] {
+  --font-family: 'Inter', 'Cantarell', 'Ubuntu', 'Noto Sans', system-ui, sans-serif;
+  --font-display: 'Inter', 'Cantarell', 'Ubuntu', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
 }

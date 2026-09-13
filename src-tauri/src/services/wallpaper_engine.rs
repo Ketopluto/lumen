@@ -213,6 +213,7 @@ pub fn set_live(app: &AppHandle, path: &str) -> Result<(), String> {
     if !Path::new(path).is_file() {
         return Err("That file is not available right now".into());
     }
+    crate::services::media::check_playable(&db, path)?;
     let staged = stage_live_file(path)?;
     let path = staged.as_str();
     app.asset_protocol_scope().allow_file(path).map_err(|e| e.to_string())?;

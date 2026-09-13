@@ -84,3 +84,21 @@ export const startupLabel = () =>
 
 /** Where a background app lives: the Windows tray, the macOS menu bar. */
 export const trayName = () => (caps.os === 'macos' ? 'menu bar' : 'tray');
+
+/**
+ * What this webview can actually decode. WKWebView often has no WebM, and WebKitGTK depends on
+ * which GStreamer plugins are installed, so sources are filtered by this rather than by platform.
+ */
+export const mediaSupport = (() => {
+  try {
+    const probe = document.createElement('video');
+    const can = (type: string) => probe.canPlayType(type) !== '';
+    return {
+      webm: can('video/webm; codecs="vp9"') || can('video/webm; codecs="vp8"') || can('video/webm'),
+      mp4: can('video/mp4; codecs="avc1.42E01E"') || can('video/mp4'),
+    };
+  } catch {
+    // No DOM (server-side render or a test): assume it plays and let playback report the truth.
+    return { webm: true, mp4: true };
+  }
+})();

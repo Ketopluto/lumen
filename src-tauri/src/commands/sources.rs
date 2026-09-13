@@ -27,7 +27,13 @@ pub async fn search(params: SearchParams, db: State<'_, Arc<Database>>) -> Resul
         }
         "konachan" => KonachanService::search(&params).await,
         "commons" => CommonsService::search_images(&params).await,
-        "live" => CommonsService::search_videos(&params).await,
+        "live" => {
+            // Wikimedia serves WebM only, so on a system without it the whole source is dead.
+            if !crate::services::media::get(&db).webm {
+                return Err(crate::services::media::webm_advice());
+            }
+            CommonsService::search_videos(&params).await
+        }
         "nasa" => NasaService::search(&params).await,
         "bing" => BingService::get_daily(&params).await,
         "unsplash" => match AppSettings::key(&settings.unsplash_access_key) {

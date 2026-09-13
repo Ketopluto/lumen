@@ -154,6 +154,8 @@ export const api = {
   removeWatchedFolder: (path: string) => invoke<void>('remove_watched_folder', { path }),
   getLocalImages: (folderPath: string) => invoke<LocalImage[]>('get_local_images', { folderPath, recursive: true }),
   getThumbnail: (path: string) => invoke<string>('get_thumbnail', { path }),
+
+  setMediaSupport: (support: { webm: boolean; mp4: boolean }) => invoke<void>('set_media_support', { support }),
 };
 
 export const isRemote = (s?: string | null): s is string => !!s && /^https?:\/\//i.test(s);

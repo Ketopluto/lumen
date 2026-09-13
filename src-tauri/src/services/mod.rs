@@ -7,6 +7,7 @@ pub mod desktop;
 pub mod konachan;
 pub mod local;
 pub mod logging;
+pub mod media;
 pub mod nasa;
 pub mod pexels;
 pub mod scheduler;

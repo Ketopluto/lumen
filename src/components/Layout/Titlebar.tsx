@@ -1,5 +1,6 @@
 import React from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { capabilities } from '../../platform';
 import './Titlebar.css';
 
 export const Titlebar: React.FC = () => {
@@ -29,6 +30,8 @@ export const Titlebar: React.FC = () => {
         </div>
         <span className="titlebar__title" data-tauri-drag-region>Lumen</span>
       </div>
+      {/* macOS draws its own traffic lights over the window. */}
+      {capabilities().custom_titlebar && (
       <div className="titlebar__controls">
         <button
           className="titlebar__btn titlebar__btn--minimize"
@@ -55,6 +58,7 @@ export const Titlebar: React.FC = () => {
           <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
         </button>
       </div>
+      )}
     </div>
   );
 };

@@ -44,6 +44,13 @@ fn create_main(app: &AppHandle) -> Result<(), String> {
         .cloned()
         .ok_or("missing main window config")?;
     config.visible = true;
+    // macOS draws its own traffic lights; float them over the content instead of a title bar.
+    #[cfg(target_os = "macos")]
+    {
+        config.decorations = true;
+        config.title_bar_style = tauri::utils::config::TitleBarStyle::Overlay;
+        config.hidden_title = true;
+    }
     let window = tauri::WebviewWindowBuilder::from_config(app, &config)
         .and_then(|builder| builder.initialization_script(desktop::bootstrap_script()).build())
         .map_err(|e| e.to_string())?;
@@ -124,6 +131,7 @@ pub fn run() {
             commands::wallpaper::get_current_wallpaper,
             commands::sources::search,
             commands::platform::get_capabilities,
+            commands::media::set_media_support,
             commands::favorites::add_favorite,
             commands::favorites::remove_favorite,
             commands::favorites::get_favorites,

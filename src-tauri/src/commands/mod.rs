@@ -1,6 +1,7 @@
 pub mod favorites;
 pub mod filesystem;
 pub mod history;
+pub mod media;
 pub mod platform;
 pub mod scheduler;
 pub mod settings;

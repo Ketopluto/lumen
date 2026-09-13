@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import Toggle from '../../components/common/Toggle';
-import { api, applyTheme, errorText, type FitMode, type Settings, type Theme } from '../../api';
+import { api, applyTheme, errorText, type Settings, type Theme } from '../../api';
+import { capabilities, osName, startupLabel, trayName } from '../../platform';
 import { useUIStore } from '../../store/uiStore';
 import './SettingsPage.css';
 
@@ -10,7 +11,8 @@ const THEMES: { id: Theme; label: string }[] = [
   { id: 'light', label: '☀️ Light' },
   { id: 'system', label: '💻 System' },
 ];
-const FITS: FitMode[] = ['fill', 'fit', 'stretch', 'center', 'span'];
+// Only the fit modes this desktop can actually apply.
+const FITS = capabilities().fit_modes;
 
 export const SettingsPage: React.FC = () => {
   const addToast = useUIStore((s) => s.addToast);
@@ -88,7 +90,7 @@ export const SettingsPage: React.FC = () => {
         <h2 className="settings-section__title">Appearance</h2>
         {row(
           'Theme',
-          'Light, dark, or follow Windows',
+          `Light, dark, or follow ${osName()}`,
           <div className="filter-chips">
             {THEMES.map((t) => (
               <button
@@ -136,35 +138,45 @@ export const SettingsPage: React.FC = () => {
             onChange={(e) => set('live_wallpaper_volume', Number(e.target.value))}
           />,
         )}
-        {row(
-          'Pause when a game or video is fullscreen',
-          'Frees your GPU for the fullscreen app',
-          <Toggle checked={settings.pause_on_fullscreen} onChange={(v) => set('pause_on_fullscreen', v)} />,
-        )}
+        {capabilities().pause_on_fullscreen
+          ? row(
+              'Pause when a game or video is fullscreen',
+              'Frees your GPU for the fullscreen app',
+              <Toggle checked={settings.pause_on_fullscreen} onChange={(v) => set('pause_on_fullscreen', v)} />,
+            )
+          : row(
+              'Pause when a game or video is fullscreen',
+              capabilities().session === 'wayland'
+                ? 'Wayland does not let apps see what other windows are doing'
+                : 'Not available on this system yet',
+              <Toggle checked={false} onChange={() => {}} disabled />,
+            )}
         {row(
           'Pause on battery',
           'Saves power when unplugged',
           <Toggle checked={settings.pause_on_battery} onChange={(v) => set('pause_on_battery', v)} />,
         )}
-        {row(
-          'Live wallpaper',
-          liveActive ? 'A live wallpaper is running' : 'No live wallpaper running',
-          <button className="btn btn--glass" onClick={stopLive} disabled={!liveActive}>
-            Stop
-          </button>,
-        )}
+        {capabilities().live_wallpaper
+          ? row(
+              'Live wallpaper',
+              liveActive ? 'A live wallpaper is running' : 'No live wallpaper running',
+              <button className="btn btn--glass" onClick={stopLive} disabled={!liveActive}>
+                Stop
+              </button>,
+            )
+          : row('Live wallpaper', capabilities().live_unsupported_reason ?? 'Not available on this desktop', <span />)}
       </div>
 
       <div className="settings-section glass-panel">
         <h2 className="settings-section__title">Behavior</h2>
         {row(
-          'Start with Windows',
-          'Launches quietly in the tray and restores your wallpaper',
+          startupLabel(),
+          `Launches quietly in the ${trayName()} and restores your wallpaper`,
           <Toggle checked={settings.start_on_boot} onChange={(v) => set('start_on_boot', v)} />,
         )}
         {row(
-          'Close to tray',
-          'The close button hides Lumen instead of quitting',
+          `Keep running in the ${trayName()}`,
+          'The close button leaves Lumen running instead of quitting',
           <Toggle checked={settings.minimize_to_tray} onChange={(v) => set('minimize_to_tray', v)} />,
         )}
         {row(
@@ -218,7 +230,7 @@ export const SettingsPage: React.FC = () => {
         <div className="settings-about">
           <p className="settings-about__name gradient-text">Lumen</p>
           <p className="settings-about__version">Version 3.0.1</p>
-          <p className="settings-about__desc">A lightweight live wallpaper manager for Windows.</p>
+          <p className="settings-about__desc">A lightweight live wallpaper manager.</p>
         </div>
       </div>
 

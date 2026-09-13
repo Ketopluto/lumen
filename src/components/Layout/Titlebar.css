@@ -56,3 +56,15 @@
   background: var(--color-error);
   color: white;
 }
+
+/* Leave room for the traffic lights, and centre the title the way macOS does. */
+:root[data-os='macos'] .titlebar {
+  padding-left: 78px;
+  justify-content: center;
+}
+
+:root[data-os='macos'] .titlebar__brand {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}

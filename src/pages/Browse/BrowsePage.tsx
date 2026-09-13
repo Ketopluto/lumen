@@ -4,6 +4,7 @@ import { SearchBar } from '../../components/SearchBar/SearchBar';
 import { WallpaperGrid } from '../../components/WallpaperGrid/WallpaperGrid';
 import { ImagePreview } from '../../components/ImagePreview/ImagePreview';
 import { api, errorText, type Wallpaper } from '../../api';
+import { mediaSupport } from '../../platform';
 import './BrowsePage.css';
 
 interface Provider {
@@ -24,7 +25,7 @@ interface Category {
 }
 
 // Grouped by what people are looking for, not by which website it comes from.
-const CATEGORIES: Category[] = [
+const ALL_CATEGORIES: Category[] = [
   {
     id: 'discover',
     label: 'Discover',
@@ -85,6 +86,16 @@ const CATEGORIES: Category[] = [
     providers: [{ id: 'bing', label: 'Bing' }],
   },
 ];
+
+// Sources this system cannot play are hidden rather than left to fail at playback time.
+const CATEGORIES: Category[] = ALL_CATEGORIES.map((category) => ({
+  ...category,
+  providers: category.providers.filter((provider) => {
+    if (provider.id === 'live') return mediaSupport.webm;
+    if (provider.id === 'pexels_video') return mediaSupport.mp4;
+    return true;
+  }),
+})).filter((category) => category.providers.length > 0);
 
 const SORTS = [
   { id: 'toplist', label: 'Top' },
