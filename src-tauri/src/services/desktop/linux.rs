@@ -6,7 +6,7 @@ use super::{Capabilities, SurfaceSpec};
 use crate::models::FitMode;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use tauri::{AppHandle, Manager, WebviewWindow};
+use tauri::{AppHandle, WebviewWindow};
 
 #[path = "linux_x11.rs"]
 mod x11;

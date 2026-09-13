@@ -67,7 +67,9 @@ pub fn attach(window: &WebviewWindow, spec: &SurfaceSpec) -> Result<(), String> 
     }
 
     let gtk_window = window.gtk_window().map_err(|e| e.to_string())?;
-    let raw: *mut c_void = gtk_window.to_glib_none().0 as *mut c_void;
+    // The C API takes a GtkWindow*, so upcast before handing over the pointer.
+    let window_ptr: *mut gtk::ffi::GtkWindow = gtk_window.upcast_ref::<gtk::Window>().to_glib_none().0;
+    let raw = window_ptr as *mut c_void;
 
     unsafe {
         // Everything below must happen before the window is realized, which `.visible(false)`
@@ -86,7 +88,8 @@ pub fn attach(window: &WebviewWindow, spec: &SurfaceSpec) -> Result<(), String> 
         // Layer-shell surfaces belong to one output, so pin each surface to its monitor.
         if let Some(index) = spec.monitor {
             if let Some(monitor) = gtk::gdk::Display::default().and_then(|d| d.monitor(index as i32)) {
-                (shell.set_monitor)(raw, monitor.to_glib_none().0 as *mut c_void);
+                let monitor_ptr: *mut gtk::gdk::ffi::GdkMonitor = monitor.to_glib_none().0;
+                (shell.set_monitor)(raw, monitor_ptr as *mut c_void);
             }
         }
     }
