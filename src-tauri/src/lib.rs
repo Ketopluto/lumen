@@ -44,16 +44,17 @@ fn create_main(app: &AppHandle) -> Result<(), String> {
         .cloned()
         .ok_or("missing main window config")?;
     config.visible = true;
-    // macOS draws its own traffic lights; float them over the content instead of a title bar.
+    let builder = tauri::WebviewWindowBuilder::from_config(app, &config)
+        .map_err(|e| e.to_string())?
+        .initialization_script(desktop::bootstrap_script());
+    // macOS draws its own traffic lights, so it keeps the system frame and floats them over the
+    // content instead of the custom titlebar the other platforms draw.
     #[cfg(target_os = "macos")]
-    {
-        config.decorations = true;
-        config.title_bar_style = tauri::utils::config::TitleBarStyle::Overlay;
-        config.hidden_title = true;
-    }
-    let window = tauri::WebviewWindowBuilder::from_config(app, &config)
-        .and_then(|builder| builder.initialization_script(desktop::bootstrap_script()).build())
-        .map_err(|e| e.to_string())?;
+    let builder = builder
+        .decorations(true)
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true);
+    let window = builder.build().map_err(|e| e.to_string())?;
     let _ = window.set_focus();
     Ok(())
 }
