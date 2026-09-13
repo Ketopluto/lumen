@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import Toggle from '../../components/common/Toggle';
 import { api, applyTheme, errorText, type Settings, type Theme } from '../../api';
-import { capabilities, osName, startupLabel, trayName } from '../../platform';
+import { capabilities, osName, startupLabel, trayName, trayNote } from '../../platform';
 import { useUIStore } from '../../store/uiStore';
 import './SettingsPage.css';
 
@@ -176,7 +176,7 @@ export const SettingsPage: React.FC = () => {
         )}
         {row(
           `Keep running in the ${trayName()}`,
-          'The close button leaves Lumen running instead of quitting',
+          `The close button leaves Lumen running instead of quitting${trayNote()}`,
           <Toggle checked={settings.minimize_to_tray} onChange={(v) => set('minimize_to_tray', v)} />,
         )}
         {row(

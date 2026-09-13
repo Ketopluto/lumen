@@ -102,3 +102,12 @@ export const mediaSupport = (() => {
     return { webm: true, mp4: true };
   }
 })();
+
+/**
+ * GNOME dropped the system tray years ago: the icon only appears if the AppIndicator extension is
+ * installed, so anyone there needs to know how to get the window back.
+ */
+export const trayNote = () =>
+  caps.os === 'linux' && (caps.desktop ?? '').includes('gnome')
+    ? '. GNOME only shows tray icons with the AppIndicator extension — either way, launching Lumen again brings the window back'
+    : '';
