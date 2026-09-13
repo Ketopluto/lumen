@@ -109,8 +109,20 @@ Windows, `.app` and `.dmg` on macOS, `.deb`, `.rpm` and AppImage on Linux — co
 cd src-tauri && cargo test
 ```
 
-CI compiles every platform backend on Windows, macOS and Linux with `clippy -D warnings` on each
-push — that's what keeps the two backends I can't run from rotting.
+There is also a live check that the wallpaper surface really lands on the desktop:
+
+```bash
+lumen --selftest
+```
+
+It creates one surface, attaches it, and prints what the platform says about it — the parent
+window class on Windows, the window level and mouse transparency on macOS, the GDK type hint on
+X11, whether it became a layer surface on Wayland. Exit `0` placed, `1` misplaced, `2` nothing to
+test here.
+
+CI compiles every platform backend on Windows, macOS and Linux with `clippy -D warnings` and runs
+that selftest on each of them (under `xvfb` on Linux) on every push — that's what keeps the two
+backends I can't run by hand from rotting.
 
 ## License
 
