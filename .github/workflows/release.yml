@@ -33,17 +33,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # A draft has no git tag yet, so it can only be found by listing releases.
-          find_id() {
-            gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
-              --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1
-          }
-          id=$(find_id)
+          # A draft carries no git tag yet, so a re-run can only find it by listing releases —
+          # and that listing lags a few seconds behind a fresh create, so the id of a new draft
+          # comes straight out of the POST instead.
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+                 --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1 || true)
           if [ -z "$id" ]; then
-            gh release create "$TAG" --draft --title "Lumen ${TAG#v}" \
-              --notes-file .github/RELEASE_NOTES.md
-            id=$(find_id)
+            id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+                   -f tag_name="$TAG" -f name="Lumen ${TAG#v}" \
+                   -F body=@.github/RELEASE_NOTES.md -F draft=true --jq .id)
           fi
+          # Without an id, tauri-action quietly skips every upload and the release ships empty.
+          test -n "$id"
           echo "release_id=$id" >> "$GITHUB_OUTPUT"
 
   build:
