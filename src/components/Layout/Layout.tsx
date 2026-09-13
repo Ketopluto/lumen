@@ -7,6 +7,7 @@ import { NowPlaying } from '../NowPlaying/NowPlaying';
 import { api, applyTheme } from '../../api';
 import { mediaSupport } from '../../platform';
 import { useAppStore } from '../../store/appStore';
+import { useUIStore } from '../../store/uiStore';
 import './Layout.css';
 
 interface LayoutProps {
@@ -24,8 +25,13 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const unlisten = listen<{ id: string; received: number; total: number | null }>('download-progress', (e) =>
       useAppStore.getState().setProgress(e.payload.id, e.payload.received, e.payload.total),
     );
+    // Raised by the wallpaper surface when a file it was handed will not play.
+    const unlistenError = listen<string>('live-error', (e) =>
+      useUIStore.getState().addToast({ type: 'error', title: 'Live wallpaper', message: e.payload }),
+    );
     return () => {
       unlisten.then((f) => f());
+      unlistenError.then((f) => f());
     };
   }, []);
 

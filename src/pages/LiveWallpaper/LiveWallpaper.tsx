@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { listen } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import { api, fileSrc } from '../../api';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
@@ -77,6 +77,19 @@ export default function LiveWallpaper() {
     };
   }, [paused]);
 
+  // A file the webview cannot decode leaves the desktop black with no explanation, so tell the
+  // window that has a UI. The codec probe catches the predictable cases; this catches the rest.
+  const reportFailure = () => {
+    const code = videoRef.current?.error?.code;
+    const reason =
+      code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED
+        ? 'this system has no codec for it'
+        : code === MediaError.MEDIA_ERR_DECODE
+          ? 'the file is damaged or incomplete'
+          : 'it could not be read';
+    emit('live-error', `That video won't play — ${reason}.`).catch(() => {});
+  };
+
   if (!path) return <div style={fill} />;
 
   const src = fileSrc(path);
@@ -84,6 +97,17 @@ export default function LiveWallpaper() {
   return IMAGE_EXTENSIONS.includes(ext) ? (
     <img key={src} src={src} style={fill} alt="" />
   ) : (
-    <video ref={videoRef} key={src} src={src} style={fill} autoPlay loop muted playsInline disablePictureInPicture />
+    <video
+      ref={videoRef}
+      key={src}
+      src={src}
+      style={fill}
+      autoPlay
+      loop
+      muted
+      playsInline
+      disablePictureInPicture
+      onError={reportFailure}
+    />
   );
 }
