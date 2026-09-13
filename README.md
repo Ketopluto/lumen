@@ -55,8 +55,8 @@ than offering a switch that does nothing.
 - **Huge free library, no keys needed**: Wallhaven (600k+ wallpapers, sorted by top, trending,
   newest, random, or most favorited), 110k+ anime wallpapers plus Konachan, Wikimedia Commons
   featured photos, NASA space imagery, and Bing's daily photos
-- **Live wallpapers**: videos and GIFs play behind your desktop icons, including thousands of free
-  Wikimedia time-lapses
+- **Live wallpapers**: videos and GIFs play behind your desktop icons, including about 2,600
+  animated anime wallpapers from Safebooru and Konachan and thousands of free Wikimedia time-lapses
 - **Stays on**: starts with your session, lives in the tray (menu bar on macOS), and brings the
   live wallpaper back by itself if the desktop restarts or your display setup changes. It pauses
   while a fullscreen game is running, and on battery if you ask it to.

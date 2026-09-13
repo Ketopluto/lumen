@@ -22,8 +22,12 @@ particular you will need the `xattr` command shown there.
   on Wayland, through `wlr-layer-shell`. GNOME on Wayland cannot do this at all; Lumen says so
   and static wallpapers still work there.
 - **Live wallpapers on macOS — beta.** The surface is placed at the desktop window level, below
-  the icons, one per display. It compiles and is believed correct, but nobody has run it on a
-  real Mac yet: please report what you see.
+  the icons, one per display. CI confirms on a real macOS window server that it lands at that
+  level and lets clicks through, but nobody has looked at it on a Mac yet: please report what
+  you see.
+- **Anime live wallpapers.** The Live tab now leads with about 2,600 animated anime wallpapers
+  from Safebooru and Konachan, searchable by series, character or tag. They are GIF loops, so
+  they play on every platform with no video codec needed.
 - Start-on-login now actually works everywhere: a Run key on Windows, a Launch Agent on macOS,
   an XDG autostart entry on Linux.
 - Auto-pause for fullscreen apps on X11 and macOS, and pause-on-battery on laptops everywhere.
