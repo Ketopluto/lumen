@@ -237,7 +237,7 @@ pub fn run() {
             } else {
                 // Started into the tray: no Dock icon and no menu bar until a window is opened.
                 #[cfg(target_os = "macos")]
-                let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             }
 
             // Bring back whatever was running last session — unless Lumen was started to open a
