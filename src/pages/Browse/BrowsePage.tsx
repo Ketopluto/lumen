@@ -51,6 +51,10 @@ const ALL_CATEGORIES: Category[] = [
     label: 'Live',
     note: 'Moving wallpapers that play behind your icons',
     providers: [
+      { id: 'anime_live', label: 'Anime', placeholder: 'Search a series, character or tag',
+        suggestions: ['scenery', 'pixel art', 'night', 'rain', 'city', 'sky', 'genshin impact', 'touhou', 'vocaloid'] },
+      { id: 'konachan_live', label: 'Anime HD', placeholder: 'Search a tag, like night or city',
+        suggestions: ['night', 'city', 'sky', 'original', 'scenic', 'pixel art'] },
       { id: 'live', label: 'Wikimedia', placeholder: 'Search time-lapse videos',
         suggestions: ['aurora', 'clouds', 'sunset', 'stars', 'city', 'storm', 'ocean', 'mountains'] },
       { id: 'pexels_video', label: 'Pexels', placeholder: 'Search Pexels videos',

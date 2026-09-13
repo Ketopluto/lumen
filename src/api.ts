@@ -210,6 +210,7 @@ export function applyTheme(theme: Theme) {
 export const SOURCE_LABELS: Record<string, string> = {
   wallhaven: 'Wallhaven',
   konachan: 'Konachan',
+  safebooru: 'Safebooru',
   commons: 'Wikimedia Commons',
   nasa: 'NASA',
   bing: 'Bing',

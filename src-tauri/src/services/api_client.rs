@@ -4,7 +4,11 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::Emitter;
 
-const USER_AGENT: &str = "Lumen/3.0 (https://github.com/Ketopluto/lumen)";
+const USER_AGENT: &str = concat!(
+    "Lumen/",
+    env!("CARGO_PKG_VERSION"),
+    " (https://github.com/Ketopluto/lumen)"
+);
 
 /// Shared HTTP clients (connection pools are reused across calls).
 pub struct ApiClient;
@@ -40,23 +44,40 @@ struct DownloadProgress<'a> {
     total: Option<u64>,
 }
 
+/// One request, with the HTTP failures every source shares turned into something a person can read.
+async fn get(url: &str, headers: &[(&str, &str)]) -> Result<reqwest::Response, String> {
+    let mut req = api_client().get(url);
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    let resp = req.send().await.map_err(|e| format!("Network error: {}", e))?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(match status.as_u16() {
+            401 | 403 => "The source rejected the request (check your API key in Settings)".to_string(),
+            429 => "Rate limited by the source — wait a minute and try again".to_string(),
+            _ => format!("HTTP {}", status),
+        });
+    }
+    Ok(resp)
+}
+
 impl ApiClient {
     /// GET request returning JSON deserialized into T.
     pub async fn get_json<T: serde::de::DeserializeOwned>(url: &str, headers: &[(&str, &str)]) -> Result<T, String> {
-        let mut req = api_client().get(url);
-        for (k, v) in headers {
-            req = req.header(*k, *v);
-        }
-        let resp = req.send().await.map_err(|e| format!("Network error: {}", e))?;
-        let status = resp.status();
-        if !status.is_success() {
-            return Err(match status.as_u16() {
-                401 | 403 => "The source rejected the request (check your API key in Settings)".to_string(),
-                429 => "Rate limited by the source — wait a minute and try again".to_string(),
-                _ => format!("HTTP {}", status),
-            });
-        }
-        resp.json::<T>()
+        get(url, headers)
+            .await?
+            .json::<T>()
+            .await
+            .map_err(|e| format!("Unexpected response: {}", e))
+    }
+
+    /// GET returning the raw body, for a source that answers with something other than JSON: an
+    /// empty search on Safebooru comes back as an empty body rather than as `[]`.
+    pub async fn get_text(url: &str, headers: &[(&str, &str)]) -> Result<String, String> {
+        get(url, headers)
+            .await?
+            .text()
             .await
             .map_err(|e| format!("Unexpected response: {}", e))
     }

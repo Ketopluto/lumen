@@ -10,6 +10,7 @@ pub mod logging;
 pub mod media;
 pub mod nasa;
 pub mod pexels;
+pub mod safebooru;
 pub mod scheduler;
 pub mod selftest;
 pub mod unsplash;

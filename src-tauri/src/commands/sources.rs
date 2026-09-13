@@ -5,6 +5,7 @@ use crate::services::database::Database;
 use crate::services::konachan::KonachanService;
 use crate::services::nasa::NasaService;
 use crate::services::pexels::PexelsService;
+use crate::services::safebooru::SafebooruService;
 use crate::services::unsplash::UnsplashService;
 use crate::services::wallhaven::WallhavenService;
 use std::sync::Arc;
@@ -26,6 +27,10 @@ pub async fn search(params: SearchParams, db: State<'_, Arc<Database>>) -> Resul
             WallhavenService::search(&anime, AppSettings::key(&settings.wallhaven_api_key)).await
         }
         "konachan" => KonachanService::search(&params).await,
+        // Moving anime art. Nearly all of it is GIF, which needs no codec, so unlike the video
+        // sources these two work on every platform.
+        "anime_live" => SafebooruService::search(&params, crate::services::media::get(&db)).await,
+        "konachan_live" => KonachanService::search_animated(&params).await,
         "commons" => CommonsService::search_images(&params).await,
         "live" => {
             // Wikimedia serves WebM only, so on a system without it the whole source is dead.

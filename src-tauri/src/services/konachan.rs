@@ -9,6 +9,9 @@ const PER_PAGE: u32 = 40;
 /// Konachan.net: anime wallpaper board (the safe-only mirror). No API key required.
 pub struct KonachanService;
 
+/// Animated posts are rarer than stills, so they are allowed to be a little smaller.
+const MIN_WIDTH: u32 = 1000;
+
 #[derive(Deserialize)]
 struct KonachanPost {
     id: u64,
@@ -23,6 +26,15 @@ struct KonachanPost {
     author: Option<String>,
 }
 
+/// Only the moving formats: a post can carry the `animated` tag and still be a JPEG.
+fn animated_media_type(url: &str) -> Option<MediaType> {
+    match url.rsplit('.').next().map(str::to_lowercase).as_deref() {
+        Some("gif") => Some(MediaType::Gif),
+        Some("webm") | Some("mp4") => Some(MediaType::Video),
+        _ => None,
+    }
+}
+
 fn absolute(url: String) -> String {
     if url.starts_with("//") {
         format!("https:{}", url)
@@ -33,9 +45,22 @@ fn absolute(url: String) -> String {
 
 impl KonachanService {
     pub async fn search(params: &SearchParams) -> Result<SearchResult, String> {
+        Self::search_board(params, false).await
+    }
+
+    /// The same board filtered to its animated posts: a small collection, but every one of them
+    /// is a wallpaper rather than a reaction GIF, which is rare for moving anime art.
+    pub async fn search_animated(params: &SearchParams) -> Result<SearchResult, String> {
+        Self::search_board(params, true).await
+    }
+
+    async fn search_board(params: &SearchParams, animated: bool) -> Result<SearchResult, String> {
         let page = params.page();
         // Konachan searches by tags: "solo leveling" -> "solo_leveling".
         let mut tags = vec!["rating:safe".to_string()];
+        if animated {
+            tags.push("animated".into());
+        }
         match params.query() {
             Some(q) => tags.push(q.to_lowercase().split_whitespace().collect::<Vec<_>>().join("_")),
             None => tags.push("order:score".into()),
@@ -53,9 +78,23 @@ impl KonachanService {
         let wallpapers = posts
             .into_iter()
             .filter(|p| p.rating.as_deref() == Some("s"))
-            .filter(|p| matches!((p.width, p.height), (Some(w), Some(h)) if w >= 1280 && w >= h))
+            .filter(|p| {
+                let floor = if animated { MIN_WIDTH } else { 1280 };
+                matches!((p.width, p.height), (Some(w), Some(h)) if w >= floor && w >= h)
+            })
             .filter_map(|p| {
-                let url = p.jpeg_url.or(p.file_url).map(absolute)?;
+                // Konachan's jpeg_url is a still frame, so an animated post has to use the
+                // original file or the wallpaper would not move.
+                let url = if animated {
+                    absolute(p.file_url?)
+                } else {
+                    p.jpeg_url.or(p.file_url).map(absolute)?
+                };
+                let media_type = if animated {
+                    animated_media_type(&url)?
+                } else {
+                    MediaType::Image
+                };
                 Some(WallpaperInfo {
                     id: format!("konachan_{}", p.id),
                     source: "konachan".into(),
@@ -71,7 +110,7 @@ impl KonachanService {
                         .map(|t| t.split_whitespace().take(8).map(|s| s.replace('_', " ")).collect()),
                     title: None,
                     author: p.author,
-                    media_type: MediaType::Image,
+                    media_type,
                 })
             })
             .collect();
