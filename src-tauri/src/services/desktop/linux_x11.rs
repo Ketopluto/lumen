@@ -45,7 +45,9 @@ pub fn attach(window: &WebviewWindow, _spec: &SurfaceSpec) -> Result<(), String>
 
     // The only place a live surface becomes visible on Linux — see the contract in mod.rs.
     gtk_window.show_all();
-    gtk_window.window().map(|w| w.lower());
+    if let Some(gdk_window) = gtk_window.window() {
+        gdk_window.lower();
+    }
     make_click_through(&gtk_window);
     Ok(())
 }
