@@ -1,8 +1,9 @@
 name: CI
 
 on:
-  # Manual only while the macOS and Linux backends are being brought up: a red run emails the
-  # repo owner, and the first builds on those platforms are expected to fail a few times.
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 jobs:
