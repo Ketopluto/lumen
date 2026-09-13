@@ -268,6 +268,24 @@ pub fn set_live(app: &AppHandle, path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Stop playing but keep the choice, so the next launch restores it. Used when Lumen exits: only
+/// an explicit "stop" should make the desktop forget its wallpaper.
+pub fn shutdown_live(app: &AppHandle) {
+    let was_live = !live_windows(app).is_empty();
+    destroy_surfaces(app);
+    if was_live {
+        repaint_static(app);
+    }
+}
+
+/// Ask the desktop to draw its wallpaper again after the player window disappears.
+fn repaint_static(app: &AppHandle) {
+    if let Some(current) = desktop::current_static_wallpaper() {
+        let fit = app.state::<Arc<Database>>().settings().fit_mode;
+        let _ = desktop::set_static_wallpaper(&current, &fit);
+    }
+}
+
 /// Stop the live wallpaper. `refresh` repaints the static wallpaper underneath.
 pub fn stop_live(app: &AppHandle, refresh: bool) {
     let state = app.state::<LiveState>();
@@ -282,10 +300,7 @@ pub fn stop_live(app: &AppHandle, refresh: bool) {
         broadcast_live(app);
     }
     if refresh && was_live {
-        if let Some(current) = desktop::current_static_wallpaper() {
-            let fit = app.state::<Arc<Database>>().settings().fit_mode;
-            let _ = desktop::set_static_wallpaper(&current, &fit);
-        }
+        repaint_static(app);
     }
 }
 

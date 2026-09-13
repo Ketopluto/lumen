@@ -114,3 +114,27 @@ pub fn bootstrap_script() -> String {
     let caps = serde_json::to_string(capabilities()).unwrap_or_else(|_| "null".to_string());
     format!("window.__LUMEN__ = {{ capabilities: {} }};", caps)
 }
+
+/// One surface per display, for platforms where a window cannot span displays (macOS, Wayland).
+/// Uses Tauri's monitor list rather than the native one: it is safe to call from any thread.
+#[allow(dead_code)] // Windows spans every monitor with a single surface instead
+pub(crate) fn per_monitor(app: &AppHandle) -> Vec<SurfaceSpec> {
+    let monitors = app.available_monitors().unwrap_or_default();
+    if monitors.is_empty() {
+        return SurfaceSpec::spanning();
+    }
+    monitors
+        .iter()
+        .enumerate()
+        .map(|(index, monitor)| {
+            let position = monitor.position();
+            let size = monitor.size();
+            SurfaceSpec {
+                index,
+                label: SurfaceSpec::label_for(index),
+                monitor: Some(index),
+                bounds: Some((position.x, position.y, size.width, size.height)),
+            }
+        })
+        .collect()
+}

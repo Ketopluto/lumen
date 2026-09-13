@@ -98,29 +98,8 @@ pub fn plan_surfaces(app: &AppHandle) -> Vec<SurfaceSpec> {
         // One window over the whole virtual screen.
         SessionType::X11 => SurfaceSpec::spanning(),
         // A layer-shell surface belongs to a single output, so each monitor needs its own.
-        _ => per_monitor(app),
+        _ => super::per_monitor(app),
     }
-}
-
-fn per_monitor(app: &AppHandle) -> Vec<SurfaceSpec> {
-    let monitors = app.available_monitors().unwrap_or_default();
-    if monitors.is_empty() {
-        return SurfaceSpec::spanning();
-    }
-    monitors
-        .iter()
-        .enumerate()
-        .map(|(index, monitor)| {
-            let position = monitor.position();
-            let size = monitor.size();
-            SurfaceSpec {
-                index,
-                label: SurfaceSpec::label_for(index),
-                monitor: Some(index),
-                bounds: Some((position.x, position.y, size.width, size.height)),
-            }
-        })
-        .collect()
 }
 
 /// Clicks, scrolls and the desktop's own right-click menu must pass through the wallpaper.

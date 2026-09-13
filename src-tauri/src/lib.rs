@@ -32,6 +32,9 @@ fn create_main(app: &AppHandle) -> Result<(), String> {
     if app.get_webview_window("main").is_some() {
         return Ok(());
     }
+    // A visible window means Lumen belongs in the Dock and owns the menu bar again.
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
     let mut config = app
         .config()
         .app
@@ -48,6 +51,20 @@ fn create_main(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Sets one file as the wallpaper, off the caller's thread.
+fn apply_file(app: &AppHandle, path: std::path::PathBuf) {
+    let path = path.to_string_lossy().to_string();
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let db = app.state::<Arc<Database>>().inner().clone();
+        let fit = db.settings().fit_mode;
+        let info = models::WallpaperInfo::from_local(&path);
+        if let Err(e) = wallpaper_engine::apply(&app, &db, &info, &fit).await {
+            log::warn!("Could not set {} as wallpaper: {}", path, e);
+        }
+    });
+}
+
 /// `lumen.exe <image-or-video>` sets that file as the wallpaper — also when Lumen is already
 /// running (the second instance forwards its arguments here). Returns true if a file was given.
 fn apply_from_args(app: &AppHandle, args: &[String], cwd: &str) -> bool {
@@ -60,21 +77,13 @@ fn apply_from_args(app: &AppHandle, args: &[String], cwd: &str) -> bool {
     else {
         return false;
     };
-    let path = path.to_string_lossy().to_string();
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let db = app.state::<Arc<Database>>().inner().clone();
-        let fit = db.settings().fit_mode;
-        let info = models::WallpaperInfo::from_local(&path);
-        if let Err(e) = wallpaper_engine::apply(&app, &db, &info, &fit).await {
-            log::warn!("Could not set {} as wallpaper: {}", path, e);
-        }
-    });
+    apply_file(app, path);
     true
 }
 
 fn quit(app: &AppHandle) {
-    wallpaper_engine::stop_live(app, true);
+    // Stop playing but remember the wallpaper: quitting is not the same as choosing to stop it.
+    wallpaper_engine::shutdown_live(app);
     app.exit(0);
 }
 
@@ -216,6 +225,10 @@ pub fn run() {
             let opened_file = apply_from_args(app.handle(), &args, &cwd);
             if !start_minimized && !opened_file {
                 create_main(app.handle())?;
+            } else {
+                // Started into the tray: no Dock icon and no menu bar until a window is opened.
+                #[cfg(target_os = "macos")]
+                let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             }
 
             // Bring back whatever was running last session — unless Lumen was started to open a
@@ -235,12 +248,27 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building Lumen")
-        .run(|_app, event| {
+        .run(|app, event| match event {
             // Closing the last window keeps Lumen in the tray; only Quit (which sets an exit code) exits.
-            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+            tauri::RunEvent::ExitRequested { api, code, .. } => {
                 if code.is_none() {
                     api.prevent_exit();
                 }
             }
+            // On macOS, Cmd+Q and "Quit" in the Dock menu terminate the app directly, so make sure
+            // the wallpaper window goes with it rather than lingering on the desktop.
+            tauri::RunEvent::Exit => wallpaper_engine::shutdown_live(app),
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => show_main(app),
+            // Finder's "Open With" arrives as an Apple Event, not on the command line.
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Opened { urls } => {
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        apply_file(app, path);
+                    }
+                }
+            }
+            _ => {}
         });
 }
