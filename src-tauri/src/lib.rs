@@ -5,6 +5,7 @@ mod utils;
 
 use services::database::Database;
 use services::scheduler::SlideshowScheduler;
+use services::desktop;
 use services::wallpaper_engine::{self, LiveState};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
@@ -41,7 +42,7 @@ fn create_main(app: &AppHandle) -> Result<(), String> {
         .ok_or("missing main window config")?;
     config.visible = true;
     let window = tauri::WebviewWindowBuilder::from_config(app, &config)
-        .and_then(|builder| builder.build())
+        .and_then(|builder| builder.initialization_script(&desktop::bootstrap_script()).build())
         .map_err(|e| e.to_string())?;
     let _ = window.set_focus();
     Ok(())
@@ -110,6 +111,7 @@ pub fn run() {
             commands::wallpaper::get_live_status,
             commands::wallpaper::get_current_wallpaper,
             commands::sources::search,
+            commands::platform::get_capabilities,
             commands::favorites::add_favorite,
             commands::favorites::remove_favorite,
             commands::favorites::get_favorites,
@@ -159,7 +161,7 @@ pub fn run() {
             // Keep the startup entry pointing at this exe (it moves when Lumen is reinstalled).
             // Debug builds skip this so a dev build never registers itself.
             #[cfg(not(debug_assertions))]
-            match wallpaper_engine::set_autostart(settings.start_on_boot) {
+            match desktop::set_autostart(settings.start_on_boot) {
                 Ok(()) => log::info!("start with Windows: {}", settings.start_on_boot),
                 Err(e) => log::warn!("could not set start-with-Windows: {}", e),
             }

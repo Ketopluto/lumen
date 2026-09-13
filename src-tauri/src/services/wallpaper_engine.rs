@@ -1,12 +1,14 @@
 use crate::models::*;
 use crate::services::api_client::ApiClient;
 use crate::services::database::Database;
+use crate::services::desktop;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
-pub const LIVE_LABEL: &str = "live_wallpaper";
+pub use crate::services::desktop::LIVE_LABEL;
+
 const LIVE_SETTING_KEY: &str = "live_wallpaper";
 
 /// State of the live (video/GIF) wallpaper window.
@@ -60,7 +62,8 @@ fn sync_pause(app: &AppHandle) -> bool {
     let pause = state.auto_paused.load(Ordering::Relaxed) || state.manual_paused.load(Ordering::Relaxed);
     let changed = state.paused.swap(pause, Ordering::Relaxed) != pause;
     if changed {
-        let _ = app.emit_to(LIVE_LABEL, "live-pause", pause);
+        // Broadcast: there is one player window per display on some platforms.
+        let _ = app.emit("live-pause", pause);
     }
     changed
 }
@@ -140,8 +143,7 @@ pub fn download_filename(info: &WallpaperInfo) -> String {
 
 pub fn set_static(app: &AppHandle, path: &str, fit: &FitMode) -> Result<(), String> {
     stop_live(app, false);
-    let _ = ::wallpaper::set_mode(fit.to_mode());
-    ::wallpaper::set_from_path(path).map_err(|e| format!("Failed to set wallpaper: {}", e))
+    desktop::set_static_wallpaper(path, fit)
 }
 
 /// Keep the playing file inside Lumen's own folder. Cloud folders (OneDrive) move files around or
@@ -170,37 +172,61 @@ fn stage_live_file(path: &str) -> Result<String, String> {
     Ok(dest.to_string_lossy().to_string())
 }
 
+/// Every live wallpaper window that currently exists.
+fn live_windows(app: &AppHandle) -> Vec<WebviewWindow> {
+    app.webview_windows()
+        .into_iter()
+        .filter(|(label, _)| label == LIVE_LABEL || label.starts_with(&format!("{}_", LIVE_LABEL)))
+        .map(|(_, window)| window)
+        .collect()
+}
+
+fn destroy_surfaces(app: &AppHandle) {
+    for window in live_windows(app) {
+        let _ = window.destroy();
+    }
+}
+
 pub fn set_live(app: &AppHandle, path: &str) -> Result<(), String> {
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = (app, path);
-        return Err("Live wallpapers are currently only supported on Windows".into());
+    let caps = desktop::capabilities();
+    if !caps.live_wallpaper {
+        return Err(caps
+            .live_unsupported_reason
+            .clone()
+            .unwrap_or_else(|| "Live wallpapers aren't supported on this desktop".into()));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        use tauri::{WebviewUrl, WebviewWindowBuilder};
+    let state = app.state::<LiveState>();
+    let db = app.state::<Arc<Database>>();
+    if !Path::new(path).is_file() {
+        return Err("That file is not available right now".into());
+    }
+    let staged = stage_live_file(path)?;
+    let path = staged.as_str();
+    app.asset_protocol_scope().allow_file(path).map_err(|e| e.to_string())?;
+    state.set_current(Some(path.to_string()));
+    state.manual_paused.store(false, Ordering::Relaxed);
+    sync_pause(app);
+    let _ = db.set_setting(LIVE_SETTING_KEY, path);
 
-        let state = app.state::<LiveState>();
-        let db = app.state::<Arc<Database>>();
-        if !Path::new(path).is_file() {
-            return Err("That file is not available right now".into());
+    let specs = desktop::plan_surfaces(app);
+    if specs.is_empty() {
+        return Err("No display to put a wallpaper on".into());
+    }
+
+    // Already playing on the right set of surfaces: just point them at the new file.
+    if specs.iter().all(|s| app.get_webview_window(&s.label).is_some()) {
+        for spec in &specs {
+            app.emit_to(spec.label.as_str(), "live-src", path).map_err(|e| e.to_string())?;
         }
-        let staged = stage_live_file(path)?;
-        let path = staged.as_str();
-        app.asset_protocol_scope().allow_file(path).map_err(|e| e.to_string())?;
-        state.set_current(Some(path.to_string()));
-        state.manual_paused.store(false, Ordering::Relaxed);
-        sync_pause(app);
-        let _ = db.set_setting(LIVE_SETTING_KEY, path);
+        broadcast_live(app);
+        return Ok(());
+    }
+    // The layout changed (a monitor came or went), so rebuild from scratch.
+    destroy_surfaces(app);
 
-        if app.get_webview_window(LIVE_LABEL).is_some() {
-            app.emit_to(LIVE_LABEL, "live-src", path).map_err(|e| e.to_string())?;
-            broadcast_live(app);
-            return Ok(());
-        }
-
-        let window = WebviewWindowBuilder::new(app, LIVE_LABEL, WebviewUrl::App("index.html".into()))
+    for spec in &specs {
+        let mut builder = WebviewWindowBuilder::new(app, &spec.label, WebviewUrl::App("index.html".into()))
             .title("Lumen Live")
             .decorations(false)
             .skip_taskbar(true)
@@ -208,43 +234,44 @@ pub fn set_live(app: &AppHandle, path: &str) -> Result<(), String> {
             .shadow(false)
             .focused(false)
             .visible(false)
+            .initialization_script(&desktop::bootstrap_script());
+        if let Some((x, y, w, h)) = spec.bounds {
+            builder = builder.position(x as f64, y as f64).inner_size(w as f64, h as f64);
+        }
+        let window = builder
             .build()
             .map_err(|e| format!("Could not create live wallpaper window: {}", e))?;
 
-        // `attach` also shows the window. Tauri's own `show()` is deliberately not used: it re-applies
-        // Tauri's window styles (dropping WS_CHILD / WS_EX_LAYERED) and activates the window, which would
-        // pull focus out of a fullscreen game when a slideshow or startup restore sets a live wallpaper.
-        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
-        if let Err(e) = unsafe { desktop::attach(hwnd.0 as isize) } {
-            // Keep `current` set: the watchdog retries (e.g. while Explorer is restarting).
-            let _ = window.destroy();
+        // `attach` also reveals the window — see the contract in services/desktop/mod.rs.
+        let spec = spec.clone();
+        let attached = desktop::on_main(app, move || desktop::attach(&window, &spec))?;
+        if let Err(e) = attached {
+            // Keep `current` set: the watchdog retries (e.g. while the desktop is restarting).
+            destroy_surfaces(app);
             return Err(e);
         }
-        broadcast_live(app);
-        Ok(())
     }
+    broadcast_live(app);
+    Ok(())
 }
 
 /// Stop the live wallpaper. `refresh` repaints the static wallpaper underneath.
 pub fn stop_live(app: &AppHandle, refresh: bool) {
     let state = app.state::<LiveState>();
-    let was_live = state.current().is_some() || app.get_webview_window(LIVE_LABEL).is_some();
+    let was_live = state.current().is_some() || !live_windows(app).is_empty();
     state.set_current(None);
     state.paused.store(false, Ordering::Relaxed);
     state.manual_paused.store(false, Ordering::Relaxed);
     state.auto_paused.store(false, Ordering::Relaxed);
     let _ = app.state::<Arc<Database>>().delete_setting(LIVE_SETTING_KEY);
-    if let Some(window) = app.get_webview_window(LIVE_LABEL) {
-        let _ = window.destroy();
-    }
+    destroy_surfaces(app);
     if was_live {
         broadcast_live(app);
     }
     if refresh && was_live {
-        if let Ok(current) = ::wallpaper::get() {
-            if !current.is_empty() {
-                let _ = ::wallpaper::set_from_path(&current);
-            }
+        if let Some(current) = desktop::current_static_wallpaper() {
+            let fit = app.state::<Arc<Database>>().settings().fit_mode;
+            let _ = desktop::set_static_wallpaper(&current, &fit);
         }
     }
 }
@@ -264,10 +291,13 @@ pub fn restore_live(app: &AppHandle) {
 }
 
 /// Background thread that pauses the live wallpaper while a fullscreen app runs or on battery.
-/// It is also the live wallpaper's watchdog: Explorer restarts and display changes can destroy the
-/// desktop windows (taking the player with them), so the player is re-created, re-attached and
-/// re-fitted as needed — a live wallpaper only stops when the user stops it.
+/// It is also the live wallpaper's watchdog: a restarted desktop shell or a display change can
+/// destroy the player windows, so they are re-created, re-attached and re-fitted as needed — a live
+/// wallpaper only stops when the user stops it.
 pub fn spawn_pause_monitor(app: AppHandle) {
+    if !desktop::capabilities().live_wallpaper {
+        return; // Nothing to watch over, and nothing worth waking up for every two seconds.
+    }
     std::thread::spawn(move || {
         let mut missing_ticks = 0u32;
         let mut idle_ticks = 0u32;
@@ -285,24 +315,24 @@ pub fn spawn_pause_monitor(app: AppHandle) {
                 continue;
             };
             idle_ticks = 0;
-            match app.get_webview_window(LIVE_LABEL) {
-                None => {
-                    missing_ticks += 1;
-                    // Skip one tick (the window may be mid-creation), then retry every ~10s.
-                    if missing_ticks == 2 || missing_ticks % 5 == 0 {
-                        match set_live(&app, &path) {
-                            Ok(()) => log::info!("Live wallpaper restored after the desktop was rebuilt"),
-                            Err(e) => log::warn!("Live wallpaper watchdog: {}", e),
-                        }
+
+            let specs = desktop::plan_surfaces(&app);
+            let missing = specs.iter().any(|s| app.get_webview_window(&s.label).is_none());
+            if missing {
+                missing_ticks += 1;
+                // Skip one tick (a window may be mid-creation), then retry every ~10s.
+                if missing_ticks == 2 || missing_ticks % 5 == 0 {
+                    match set_live(&app, &path) {
+                        Ok(()) => log::info!("Live wallpaper restored after the desktop was rebuilt"),
+                        Err(e) => log::warn!("Live wallpaper watchdog: {}", e),
                     }
-                    continue;
                 }
-                Some(_window) => {
-                    missing_ticks = 0;
-                    #[cfg(target_os = "windows")]
-                    if let Ok(hwnd) = _window.hwnd() {
-                        unsafe { desktop::keep_fitted(hwnd.0 as isize) };
-                    }
+                continue;
+            }
+            missing_ticks = 0;
+            for spec in specs {
+                if let Some(window) = app.get_webview_window(&spec.label) {
+                    desktop::on_main_async(&app, move || desktop::refit(&window, &spec));
                 }
             }
             pause_tick(&app);
@@ -311,189 +341,20 @@ pub fn spawn_pause_monitor(app: AppHandle) {
 }
 
 fn pause_tick(app: &AppHandle) {
-    let state = app.state::<LiveState>();
-    {
-        let settings = app.state::<Arc<Database>>().settings();
-        let auto = (settings.pause_on_fullscreen && desktop::fullscreen_app_active())
-            || (settings.pause_on_battery && desktop::on_battery());
-        state.auto_paused.store(auto, Ordering::Relaxed);
-        if sync_pause(app) {
-            broadcast_live(app);
-        }
-    }
-}
-
-#[cfg(target_os = "windows")]
-pub fn set_autostart(enable: bool) -> Result<(), String> {
-    // Only the Run key. Registering a scheduled task as well made Windows Defender's behaviour
-    // heuristics flag Lumen as malware (Behavior:Win32/Execution.A!ml) and quarantine it.
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE};
-    use winreg::RegKey;
-    let run = RegKey::predef(HKEY_CURRENT_USER)
-        .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", KEY_SET_VALUE | KEY_QUERY_VALUE)
-        .map_err(|e| e.to_string())?;
-    let current = run.get_value::<String, _>("Lumen").ok();
-    if enable {
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let value = format!("\"{}\" --minimized", exe.display());
-        // Write only when it actually changes: rewriting an autostart entry on every launch is
-        // another pattern antivirus heuristics score against.
-        if current.as_deref() == Some(value.as_str()) {
-            return Ok(());
-        }
-        run.set_value("Lumen", &value).map_err(|e| e.to_string())
-    } else {
-        if current.is_none() {
-            return Ok(());
-        }
-        match run.delete_value("Lumen") {
-            Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(e.to_string()),
-        }
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-pub fn set_autostart(_enable: bool) -> Result<(), String> {
-    Ok(())
-}
-
-#[cfg(target_os = "windows")]
-mod desktop {
-    use std::ffi::c_void;
-    use windows::core::{w, PCWSTR};
-    use windows::Win32::Foundation::{BOOL, COLORREF, FALSE, HWND, LPARAM, RECT, TRUE, WPARAM};
-    use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
-    use windows::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
-    use windows::Win32::UI::WindowsAndMessaging::*;
-
-    /// Parent `raw` behind the desktop icons so it renders as the wallpaper.
-    ///
-    /// Windows 11 24H2+ keeps the icon view (SHELLDLL_DefView) and the wallpaper WorkerW side by side
-    /// inside Progman, so the window becomes a child of that WorkerW. (A layered sibling of the icons
-    /// is only a fallback: WebView2 renders black inside layered windows.) Older Windows moves the
-    /// icons into a new WorkerW, and the wallpaper goes into the WorkerW behind it.
-    pub unsafe fn attach(raw: isize) -> Result<(), String> {
-        let hwnd = HWND(raw as *mut c_void);
-        let progman = FindWindowW(w!("Progman"), PCWSTR::null())
-            .map_err(|_| "Could not find the desktop window (is Explorer running?)".to_string())?;
-
-        // Ask Progman to create the WorkerW that sits behind the icons.
-        let mut result = 0usize;
-        let _ = SendMessageTimeoutW(progman, 0x052C, WPARAM(0xD), LPARAM(0x1), SMTO_NORMAL, 1000, Some(&mut result));
-
-        let cx = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-        let cy = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-
-        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-        let remove = (WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX).0 as isize;
-        SetWindowLongPtrW(hwnd, GWL_STYLE, (style & !remove) | WS_CHILD.0 as isize);
-
-        let raised_desktop = FindWindowExW(progman, HWND::default(), w!("SHELLDLL_DefView"), PCWSTR::null());
-        let raised_worker = FindWindowExW(progman, HWND::default(), w!("WorkerW"), PCWSTR::null());
-        if let (Ok(_), Ok(worker)) = (&raised_desktop, &raised_worker) {
-            // Windows 11 24H2+: become a child of the WorkerW that paints the wallpaper. It sits
-            // below the icons, and needs no WS_EX_LAYERED (WebView2 renders black in layered windows).
-            SetParent(hwnd, *worker).map_err(|e| format!("SetParent failed: {}", e))?;
-            let _ = SetWindowPos(hwnd, HWND::default(), 0, 0, cx, cy, SWP_NOACTIVATE);
-        } else if let Ok(icons) = raised_desktop {
-            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED.0 as isize);
-            let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), 255, LWA_ALPHA);
-            SetParent(hwnd, progman).map_err(|e| format!("SetParent failed: {}", e))?;
-            // Directly below the icon view...
-            let _ = SetWindowPos(hwnd, icons, 0, 0, cx, cy, SWP_NOACTIVATE);
-            // ...and above the WorkerW that paints the static wallpaper.
-            if let Ok(worker) = FindWindowExW(progman, HWND::default(), w!("WorkerW"), PCWSTR::null()) {
-                let _ = SetWindowPos(worker, hwnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-            }
-        } else {
-            let mut worker = HWND::default();
-            let _ = EnumWindows(Some(find_worker), LPARAM(&mut worker as *mut HWND as isize));
-            if worker.0.is_null() {
-                return Err("Could not find the desktop WorkerW window".into());
-            }
-            SetParent(hwnd, worker).map_err(|e| format!("SetParent failed: {}", e))?;
-            let _ = SetWindowPos(hwnd, HWND::default(), 0, 0, cx, cy, SWP_NOACTIVATE);
-        }
-        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-        Ok(())
-    }
-
-    /// Re-attaches the player if it lost its desktop parent, and keeps it covering every monitor
-    /// (the virtual screen changes with resolution or monitor changes).
-    pub unsafe fn keep_fitted(raw: isize) {
-        let hwnd = HWND(raw as *mut c_void);
-        let attached = matches!(GetParent(hwnd), Ok(p) if !p.0.is_null() && IsWindow(p).as_bool());
-        if !attached {
-            let _ = attach(raw);
-            return;
-        }
-        let cx = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-        let cy = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-        let mut rect = RECT::default();
-        if GetClientRect(hwnd, &mut rect).is_ok() && (rect.right != cx || rect.bottom != cy) {
-            let _ = SetWindowPos(hwnd, HWND::default(), 0, 0, cx, cy, SWP_NOACTIVATE | SWP_NOZORDER);
-        }
-    }
-
-    /// Finds the WorkerW that follows the top-level window hosting SHELLDLL_DefView.
-    unsafe extern "system" fn find_worker(top: HWND, out: LPARAM) -> BOOL {
-        if FindWindowExW(top, HWND::default(), w!("SHELLDLL_DefView"), PCWSTR::null()).is_ok() {
-            if let Ok(worker) = FindWindowExW(HWND::default(), top, w!("WorkerW"), PCWSTR::null()) {
-                *(out.0 as *mut HWND) = worker;
-                return FALSE;
-            }
-        }
-        TRUE
-    }
-
-    pub fn fullscreen_app_active() -> bool {
-        unsafe {
-            let fg = GetForegroundWindow();
-            if fg.0.is_null() {
-                return false;
-            }
-            let mut class = [0u16; 64];
-            let len = GetClassNameW(fg, &mut class).max(0) as usize;
-            let class = String::from_utf16_lossy(&class[..len]);
-            if matches!(class.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd") {
-                return false;
-            }
-            let mut rect = RECT::default();
-            if GetWindowRect(fg, &mut rect).is_err() {
-                return false;
-            }
-            let monitor = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
-            let mut info = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
-            if !GetMonitorInfoW(monitor, &mut info).as_bool() {
-                return false;
-            }
-            let m = info.rcMonitor;
-            rect.left <= m.left && rect.top <= m.top && rect.right >= m.right && rect.bottom >= m.bottom
-        }
-    }
-
-    pub fn on_battery() -> bool {
-        let mut status = SYSTEM_POWER_STATUS::default();
-        unsafe { GetSystemPowerStatus(&mut status).is_ok() && status.ACLineStatus == 0 }
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-mod desktop {
-    pub fn fullscreen_app_active() -> bool {
-        false
-    }
-    pub fn on_battery() -> bool {
-        false
+    let caps = desktop::capabilities();
+    let settings = app.state::<Arc<Database>>().settings();
+    let auto = (caps.pause_on_fullscreen && settings.pause_on_fullscreen && desktop::fullscreen_app_active())
+        || (caps.pause_on_battery && settings.pause_on_battery && desktop::on_battery());
+    app.state::<LiveState>().auto_paused.store(auto, Ordering::Relaxed);
+    if sync_pause(app) {
+        broadcast_live(app);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::desktop::SurfaceSpec;
 
     fn info(id: &str, url: &str, media: MediaType) -> WallpaperInfo {
         let mut w = WallpaperInfo::from_local("x");
@@ -525,5 +386,11 @@ mod tests {
             download_filename(&info("nasa_PIA 1/2", "https://images-assets.nasa.gov/image/x/x~orig.jpg", MediaType::Image)),
             "nasa_PIA_1_2.jpg"
         );
+    }
+
+    #[test]
+    fn extra_surfaces_are_labelled_predictably() {
+        assert_eq!(SurfaceSpec::label_for(0), LIVE_LABEL);
+        assert_eq!(SurfaceSpec::label_for(2), format!("{}_2", LIVE_LABEL));
     }
 }

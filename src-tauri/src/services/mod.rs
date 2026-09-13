@@ -2,6 +2,7 @@ pub mod api_client;
 pub mod bing;
 pub mod commons;
 pub mod database;
+pub mod desktop;
 pub mod konachan;
 pub mod local;
 pub mod logging;
