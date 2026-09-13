@@ -14,6 +14,9 @@ mod x11;
 #[path = "linux_wayland.rs"]
 mod wayland;
 
+#[path = "linux_static.rs"]
+mod still;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionType {
     X11,
@@ -89,7 +92,7 @@ pub fn capabilities() -> Capabilities {
     caps.pause_on_fullscreen = session == SessionType::X11;
     // X11 spans every monitor with one surface; Wayland gets one surface per output.
     caps.live_all_monitors = true;
-    caps.fit_modes = vec![FitMode::Fill, FitMode::Fit, FitMode::Stretch, FitMode::Center];
+    caps.fit_modes = still::fit_modes(caps.desktop.as_deref().unwrap_or(""));
     caps
 }
 
@@ -237,13 +240,11 @@ fn on_battery_in(dir: &Path) -> bool {
 // ── Static wallpaper ───────────────────────────────────────────────────────
 
 pub fn set_static_wallpaper(path: &str, fit: &FitMode) -> Result<(), String> {
-    // Honoured by the GNOME, KDE, Cinnamon, MATE and XFCE paths; other desktops ignore it.
-    let _ = ::wallpaper::set_mode(fit.to_mode());
-    ::wallpaper::set_from_path(path).map_err(|e| format!("Failed to set wallpaper: {}", e))
+    still::set(&desktop_environment(), path, fit)
 }
 
 pub fn current_static_wallpaper() -> Option<String> {
-    ::wallpaper::get().ok().filter(|p| !p.is_empty())
+    still::current(&desktop_environment())
 }
 
 #[cfg(test)]
