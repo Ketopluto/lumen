@@ -1,14 +1,18 @@
-//! Linux. Session and desktop detection, power and fullscreen state; the X11 and Wayland
-//! wallpaper surfaces land in later stages.
+//! Linux: session and desktop detection, power and fullscreen state, and the choice between the
+//! X11 and Wayland wallpaper surfaces.
 
 use super::{Capabilities, SurfaceSpec};
 
-#[path = "linux_x11.rs"]
-mod x11;
 use crate::models::FitMode;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use tauri::{AppHandle, WebviewWindow};
+use tauri::{AppHandle, Manager, WebviewWindow};
+
+#[path = "linux_x11.rs"]
+mod x11;
+
+#[path = "linux_wayland.rs"]
+mod wayland;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionType {
@@ -71,27 +75,68 @@ pub fn capabilities() -> Capabilities {
              here. Still images work fine. For live wallpapers, log out and choose \"GNOME on Xorg\" \
              at the login screen.",
         ),
-        SessionType::Wayland => {
-            caps.without_live("Live wallpapers on Wayland compositors are still being built. Still images work now.")
-        }
+        // wlroots compositors and KWin implement the background layer; GNOME deliberately does not.
+        SessionType::Wayland if wayland::library_available() => caps,
+        SessionType::Wayland => caps.without_live(
+            "Live wallpapers on Wayland need gtk-layer-shell. Install it (gtk-layer-shell on Fedora \
+             and Arch, libgtk-layer-shell0 on Debian and Ubuntu) and restart Lumen.",
+        ),
         SessionType::Unknown => caps.without_live("Lumen could not tell which display server this session uses."),
     };
     caps.session = Some(session.as_str());
     caps.desktop = Some(desktop);
     // No way to inspect other windows on Wayland, by design.
     caps.pause_on_fullscreen = session == SessionType::X11;
-    caps.live_all_monitors = session == SessionType::X11;
+    // X11 spans every monitor with one surface; Wayland gets one surface per output.
+    caps.live_all_monitors = true;
     caps.fit_modes = vec![FitMode::Fill, FitMode::Fit, FitMode::Stretch, FitMode::Center];
     caps
 }
 
-pub fn plan_surfaces(_app: &AppHandle) -> Vec<SurfaceSpec> {
-    SurfaceSpec::spanning()
+pub fn plan_surfaces(app: &AppHandle) -> Vec<SurfaceSpec> {
+    match session() {
+        // One window over the whole virtual screen.
+        SessionType::X11 => SurfaceSpec::spanning(),
+        // A layer-shell surface belongs to a single output, so each monitor needs its own.
+        _ => per_monitor(app),
+    }
+}
+
+fn per_monitor(app: &AppHandle) -> Vec<SurfaceSpec> {
+    let monitors = app.available_monitors().unwrap_or_default();
+    if monitors.is_empty() {
+        return SurfaceSpec::spanning();
+    }
+    monitors
+        .iter()
+        .enumerate()
+        .map(|(index, monitor)| {
+            let position = monitor.position();
+            let size = monitor.size();
+            SurfaceSpec {
+                index,
+                label: SurfaceSpec::label_for(index),
+                monitor: Some(index),
+                bounds: Some((position.x, position.y, size.width, size.height)),
+            }
+        })
+        .collect()
+}
+
+/// Clicks, scrolls and the desktop's own right-click menu must pass through the wallpaper.
+pub(super) fn make_click_through(gtk_window: &gtk::ApplicationWindow) {
+    use gtk::prelude::*;
+    let empty = gtk::cairo::Region::create();
+    gtk_window.input_shape_combine_region(Some(&empty));
+    if let Some(gdk_window) = gtk_window.window() {
+        gdk_window.set_pass_through(true);
+    }
 }
 
 pub fn attach(window: &WebviewWindow, spec: &SurfaceSpec) -> Result<(), String> {
     match session() {
         SessionType::X11 => x11::attach(window, spec),
+        SessionType::Wayland => wayland::attach(window, spec),
         _ => Err(capabilities()
             .live_unsupported_reason
             .clone()
@@ -100,8 +145,10 @@ pub fn attach(window: &WebviewWindow, spec: &SurfaceSpec) -> Result<(), String> 
 }
 
 pub fn refit(window: &WebviewWindow, spec: &SurfaceSpec) {
-    if session() == SessionType::X11 {
-        x11::refit(window, spec);
+    match session() {
+        SessionType::X11 => x11::refit(window, spec),
+        SessionType::Wayland => wayland::refit(window, spec),
+        SessionType::Unknown => {}
     }
 }
 

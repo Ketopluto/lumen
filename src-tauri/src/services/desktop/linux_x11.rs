@@ -48,17 +48,8 @@ pub fn attach(window: &WebviewWindow, _spec: &SurfaceSpec) -> Result<(), String>
     if let Some(gdk_window) = gtk_window.window() {
         gdk_window.lower();
     }
-    make_click_through(&gtk_window);
+    super::make_click_through(&gtk_window);
     Ok(())
-}
-
-/// Clicks, scrolls and the desktop's own right-click menu must pass straight through the wallpaper.
-fn make_click_through(gtk_window: &gtk::ApplicationWindow) {
-    let empty = gtk::cairo::Region::create();
-    gtk_window.input_shape_combine_region(Some(&empty));
-    if let Some(gdk_window) = gtk_window.window() {
-        gdk_window.set_pass_through(true);
-    }
 }
 
 pub fn refit(window: &WebviewWindow, _spec: &SurfaceSpec) {
@@ -74,6 +65,6 @@ pub fn refit(window: &WebviewWindow, _spec: &SurfaceSpec) {
     if width != bounds.width() || height != bounds.height() {
         gtk_window.move_(bounds.x(), bounds.y());
         gtk_window.resize(bounds.width(), bounds.height());
-        make_click_through(&gtk_window);
+        super::make_click_through(&gtk_window);
     }
 }
