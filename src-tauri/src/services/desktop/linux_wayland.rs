@@ -122,7 +122,8 @@ pub fn describe(window: &WebviewWindow) -> SurfaceReport {
             return report;
         }
     };
-    let raw: *mut gtk::ffi::GtkWindow = gtk_window.to_glib_none().0;
+    // The C API takes a GtkWindow*, so upcast before handing over the pointer.
+    let raw: *mut gtk::ffi::GtkWindow = gtk_window.upcast_ref::<gtk::Window>().to_glib_none().0;
     // Safety: a live GtkWindow pointer, and the library was loaded from the same process.
     unsafe {
         report.placed = (shell.is_layer_window)(raw as *mut c_void) != 0;
