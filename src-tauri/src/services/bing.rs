@@ -26,7 +26,13 @@ impl BingService {
     pub async fn get_daily(params: &SearchParams) -> Result<SearchResult, String> {
         let page = params.page();
         if page > 2 {
-            return Ok(SearchResult { wallpapers: vec![], total: Some(16), page, has_more: false, seed: None });
+            return Ok(SearchResult {
+                wallpapers: vec![],
+                total: Some(16),
+                page,
+                has_more: false,
+                seed: None,
+            });
         }
         let url = format!("{}?format=js&idx={}&n=8&mkt=en-US", BING_API, (page - 1) * 8);
         let resp: BingResponse = ApiClient::get_json(&url, &[]).await?;
@@ -55,6 +61,12 @@ impl BingService {
             })
             .collect();
 
-        Ok(SearchResult { wallpapers, total: Some(16), page, has_more: page < 2, seed: None })
+        Ok(SearchResult {
+            wallpapers,
+            total: Some(16),
+            page,
+            has_more: page < 2,
+            seed: None,
+        })
     }
 }

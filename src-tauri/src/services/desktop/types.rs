@@ -93,6 +93,11 @@ impl SurfaceSpec {
 
     /// A single surface covering the whole desktop (Windows, X11).
     pub fn spanning() -> Vec<Self> {
-        vec![Self { index: 0, label: Self::label_for(0), monitor: None, bounds: None }]
+        vec![Self {
+            index: 0,
+            label: Self::label_for(0),
+            monitor: None,
+            bounds: None,
+        }]
     }
 }

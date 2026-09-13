@@ -128,7 +128,13 @@ pub fn download_filename(info: &WallpaperInfo) -> String {
     let stem: String = info
         .id
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .take(80)
         .collect();
     let url_path = info.url.split(['?', '#']).next().unwrap_or("");
@@ -137,7 +143,13 @@ pub fn download_filename(info: &WallpaperInfo) -> String {
         .next()
         .and_then(|name| name.rsplit_once('.').map(|(_, e)| e.to_lowercase()))
         .filter(|e| crate::utils::is_wallpaper_extension(e))
-        .unwrap_or_else(|| if info.media_type == MediaType::Video { "mp4".into() } else { "jpg".into() });
+        .unwrap_or_else(|| {
+            if info.media_type == MediaType::Video {
+                "mp4".into()
+            } else {
+                "jpg".into()
+            }
+        });
     format!("{}.{}", stem, ext)
 }
 
@@ -217,7 +229,8 @@ pub fn set_live(app: &AppHandle, path: &str) -> Result<(), String> {
     // Already playing on the right set of surfaces: just point them at the new file.
     if specs.iter().all(|s| app.get_webview_window(&s.label).is_some()) {
         for spec in &specs {
-            app.emit_to(spec.label.as_str(), "live-src", path).map_err(|e| e.to_string())?;
+            app.emit_to(spec.label.as_str(), "live-src", path)
+                .map_err(|e| e.to_string())?;
         }
         broadcast_live(app);
         return Ok(());
@@ -367,23 +380,43 @@ mod tests {
     #[test]
     fn download_filenames_are_safe_and_keep_extensions() {
         assert_eq!(
-            download_filename(&info("wallhaven_6lyyvx", "https://w.wallhaven.cc/full/6l/wallhaven-6lyyvx.png", MediaType::Image)),
+            download_filename(&info(
+                "wallhaven_6lyyvx",
+                "https://w.wallhaven.cc/full/6l/wallhaven-6lyyvx.png",
+                MediaType::Image
+            )),
             "wallhaven_6lyyvx.png"
         );
         assert_eq!(
-            download_filename(&info("unsplash_ab:c", "https://images.unsplash.com/photo-1?ixid=1&fm=jpg", MediaType::Image)),
+            download_filename(&info(
+                "unsplash_ab:c",
+                "https://images.unsplash.com/photo-1?ixid=1&fm=jpg",
+                MediaType::Image
+            )),
             "unsplash_ab_c.jpg"
         );
         assert_eq!(
-            download_filename(&info("commons_1", "https://upload.wikimedia.org/a/b/X.webm.1080p.vp9.webm", MediaType::Video)),
+            download_filename(&info(
+                "commons_1",
+                "https://upload.wikimedia.org/a/b/X.webm.1080p.vp9.webm",
+                MediaType::Video
+            )),
             "commons_1.webm"
         );
         assert_eq!(
-            download_filename(&info("pexelsvideo_9", "https://videos.pexels.com/video-files/9/file?x=1", MediaType::Video)),
+            download_filename(&info(
+                "pexelsvideo_9",
+                "https://videos.pexels.com/video-files/9/file?x=1",
+                MediaType::Video
+            )),
             "pexelsvideo_9.mp4"
         );
         assert_eq!(
-            download_filename(&info("nasa_PIA 1/2", "https://images-assets.nasa.gov/image/x/x~orig.jpg", MediaType::Image)),
+            download_filename(&info(
+                "nasa_PIA 1/2",
+                "https://images-assets.nasa.gov/image/x/x~orig.jpg",
+                MediaType::Image
+            )),
             "nasa_PIA_1_2.jpg"
         );
     }

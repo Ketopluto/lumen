@@ -38,7 +38,11 @@ pub fn get_collections(db: State<'_, Arc<Database>>) -> Result<Vec<Collection>, 
 }
 
 #[tauri::command]
-pub fn add_to_collection(collection_id: String, favorite_id: String, db: State<'_, Arc<Database>>) -> Result<(), String> {
+pub fn add_to_collection(
+    collection_id: String,
+    favorite_id: String,
+    db: State<'_, Arc<Database>>,
+) -> Result<(), String> {
     db.add_to_collection(&collection_id, &favorite_id)
 }
 

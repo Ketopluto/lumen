@@ -1,7 +1,7 @@
-pub mod wallpaper;
-pub mod source;
 pub mod settings;
+pub mod source;
+pub mod wallpaper;
 
-pub use wallpaper::*;
-pub use source::*;
 pub use settings::*;
+pub use source::*;
+pub use wallpaper::*;

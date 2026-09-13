@@ -30,7 +30,10 @@ pub fn scan_folder(root: &Path, recursive: bool) -> Vec<LocalImage> {
             let Ok(meta) = entry.metadata() else { continue };
             out.push(LocalImage {
                 path: path.to_string_lossy().to_string(),
-                filename: path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+                filename: path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default(),
                 media_type: MediaType::from_extension(&ext),
                 extension: ext,
                 size_bytes: meta.len(),

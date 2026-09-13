@@ -86,12 +86,22 @@ impl CommonsService {
         // CIRA's satellite weather loops are excluded too (they're mostly labeled maps).
         let q = params.query().unwrap_or("sky OR clouds OR sunset OR aurora OR stars");
         let search = format!("{} -CIRA filetype:video filew:>1279 deepcat:\"Time-lapse videos\"", q);
-        Self::run(params, &search, "videoinfo", "viprop=url|size|mime|derivatives&viurlwidth=640").await
+        Self::run(
+            params,
+            &search,
+            "videoinfo",
+            "viprop=url|size|mime|derivatives&viurlwidth=640",
+        )
+        .await
     }
 
     async fn run(params: &SearchParams, search: &str, prop: &str, prop_args: &str) -> Result<SearchResult, String> {
         let page = params.page();
-        let sort = if params.query().is_some() || prop == "videoinfo" { "relevance" } else { "create_timestamp_desc" };
+        let sort = if params.query().is_some() || prop == "videoinfo" {
+            "relevance"
+        } else {
+            "create_timestamp_desc"
+        };
         let url = format!(
             "{}?action=query&format=json&formatversion=2&generator=search&gsrnamespace=6&gsrlimit={}&gsroffset={}&gsrsort={}&gsrsearch={}&prop={}&{}",
             COMMONS_API,
@@ -158,9 +168,8 @@ impl CommonsService {
 
 /// Pick the best WebView-playable rendition up to 1080p (originals can be huge 4K files or Theora).
 fn pick_video(info: &CommonsInfo) -> Option<String> {
-    let playable = |d: &&CommonsDerivative| {
-        d.kind.starts_with("video/webm") && (d.kind.contains("vp9") || d.kind.contains("vp8"))
-    };
+    let playable =
+        |d: &&CommonsDerivative| d.kind.starts_with("video/webm") && (d.kind.contains("vp9") || d.kind.contains("vp8"));
     let best = info
         .derivatives
         .iter()

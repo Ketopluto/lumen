@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use super::FitMode;
+use serde::{Deserialize, Serialize};
 
 /// Application settings persisted in the database.
 /// `#[serde(default)]` keeps older saved settings loadable when fields are added.

@@ -24,8 +24,7 @@ pub fn update_settings(
 
     let previous = db.settings();
     if previous.start_on_boot != settings.start_on_boot {
-        desktop::set_autostart(settings.start_on_boot)
-            .map_err(|e| format!("Couldn't change start-on-login: {}", e))?;
+        desktop::set_autostart(settings.start_on_boot).map_err(|e| format!("Couldn't change start-on-login: {}", e))?;
     }
     if previous.download_dir != settings.download_dir {
         std::fs::create_dir_all(&settings.download_dir)

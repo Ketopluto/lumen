@@ -68,7 +68,11 @@ impl NasaService {
             .into_iter()
             .filter_map(|item| {
                 let data = item.data.into_iter().next()?;
-                let preview = item.links.iter().find(|l| l.href.contains("~medium")).or(item.links.first())?;
+                let preview = item
+                    .links
+                    .iter()
+                    .find(|l| l.href.contains("~medium"))
+                    .or(item.links.first())?;
                 // Skip portrait images where the preview reveals the aspect ratio.
                 if let (Some(w), Some(h)) = (preview.width, preview.height) {
                     if w < h {

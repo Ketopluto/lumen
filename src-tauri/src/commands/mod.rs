@@ -1,8 +1,8 @@
-pub mod wallpaper;
-pub mod sources;
 pub mod favorites;
+pub mod filesystem;
 pub mod history;
-pub mod settings;
 pub mod platform;
 pub mod scheduler;
-pub mod filesystem;
+pub mod settings;
+pub mod sources;
+pub mod wallpaper;

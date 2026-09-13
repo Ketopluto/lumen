@@ -14,7 +14,10 @@ pub struct SlideshowScheduler {
 
 impl SlideshowScheduler {
     pub fn new(db: Arc<Database>) -> Self {
-        Self { task: Mutex::new(None), db }
+        Self {
+            task: Mutex::new(None),
+            db,
+        }
     }
 
     pub async fn status(&self) -> Option<SlideshowConfig> {
@@ -24,13 +27,21 @@ impl SlideshowScheduler {
     fn collect(&self, source: &SlideshowSource) -> Result<Vec<WallpaperInfo>, String> {
         Ok(match source {
             SlideshowSource::Favorites => self.db.get_favorites(None)?.into_iter().map(|f| f.wallpaper).collect(),
-            SlideshowSource::Collection(id) => self.db.get_favorites(Some(id))?.into_iter().map(|f| f.wallpaper).collect(),
+            SlideshowSource::Collection(id) => self
+                .db
+                .get_favorites(Some(id))?
+                .into_iter()
+                .map(|f| f.wallpaper)
+                .collect(),
             SlideshowSource::Folder(path) => {
                 let dir = std::path::Path::new(path);
                 if !dir.is_dir() {
                     return Err("Slideshow folder doesn't exist".into());
                 }
-                local::scan_folder(dir, true).into_iter().map(|f| WallpaperInfo::from_local(&f.path)).collect()
+                local::scan_folder(dir, true)
+                    .into_iter()
+                    .map(|f| WallpaperInfo::from_local(&f.path))
+                    .collect()
             }
         })
     }
@@ -45,7 +56,10 @@ impl SlideshowScheduler {
         }
 
         self.stop_task().await;
-        let _ = self.db.set_setting(SLIDESHOW_SETTING_KEY, &serde_json::to_string(&config).map_err(|e| e.to_string())?);
+        let _ = self.db.set_setting(
+            SLIDESHOW_SETTING_KEY,
+            &serde_json::to_string(&config).map_err(|e| e.to_string())?,
+        );
 
         let db = self.db.clone();
         let interval = std::time::Duration::from_secs(config.interval_secs.max(10));

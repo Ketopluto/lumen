@@ -19,7 +19,10 @@ pub async fn search(params: SearchParams, db: State<'_, Arc<Database>>) -> Resul
     match params.source.as_str() {
         "wallhaven" => WallhavenService::search(&params, AppSettings::key(&settings.wallhaven_api_key)).await,
         "anime" => {
-            let anime = SearchParams { categories: Some("010".into()), ..params.clone() };
+            let anime = SearchParams {
+                categories: Some("010".into()),
+                ..params.clone()
+            };
             WallhavenService::search(&anime, AppSettings::key(&settings.wallhaven_api_key)).await
         }
         "konachan" => KonachanService::search(&params).await,

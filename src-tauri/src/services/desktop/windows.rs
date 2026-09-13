@@ -43,7 +43,15 @@ unsafe fn attach_hwnd(raw: isize) -> Result<(), String> {
 
     // Ask Progman to create the WorkerW that sits behind the icons.
     let mut result = 0usize;
-    let _ = SendMessageTimeoutW(progman, 0x052C, WPARAM(0xD), LPARAM(0x1), SMTO_NORMAL, 1000, Some(&mut result));
+    let _ = SendMessageTimeoutW(
+        progman,
+        0x052C,
+        WPARAM(0xD),
+        LPARAM(0x1),
+        SMTO_NORMAL,
+        1000,
+        Some(&mut result),
+    );
 
     let cx = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     let cy = GetSystemMetrics(SM_CYVIRTUALSCREEN);
@@ -121,7 +129,10 @@ pub fn fullscreen_app_active() -> bool {
         let mut class = [0u16; 64];
         let len = GetClassNameW(fg, &mut class).max(0) as usize;
         let class = String::from_utf16_lossy(&class[..len]);
-        if matches!(class.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd") {
+        if matches!(
+            class.as_str(),
+            "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd"
+        ) {
             return false;
         }
         let mut rect = RECT::default();
@@ -129,7 +140,10 @@ pub fn fullscreen_app_active() -> bool {
             return false;
         }
         let monitor = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
-        let mut info = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        let mut info = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
         if !GetMonitorInfoW(monitor, &mut info).as_bool() {
             return false;
         }
@@ -149,7 +163,10 @@ pub fn set_autostart(enable: bool) -> Result<(), String> {
     use winreg::enums::{HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE};
     use winreg::RegKey;
     let run = RegKey::predef(HKEY_CURRENT_USER)
-        .open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", KEY_SET_VALUE | KEY_QUERY_VALUE)
+        .open_subkey_with_flags(
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            KEY_SET_VALUE | KEY_QUERY_VALUE,
+        )
         .map_err(|e| e.to_string())?;
     let current = run.get_value::<String, _>("Lumen").ok();
     if enable {

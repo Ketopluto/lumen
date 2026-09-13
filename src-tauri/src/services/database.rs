@@ -44,7 +44,8 @@ impl Database {
             std::fs::create_dir_all(parent).map_err(err)?;
         }
         let conn = Connection::open(db_path).map_err(err)?;
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;").map_err(err)?;
+        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
+            .map_err(err)?;
         conn.execute_batch(include_str!("../../migrations/001_initial.sql"))
             .map_err(|e| format!("Migration failed: {}", e))?;
         Ok(Self { conn: Mutex::new(conn) })
@@ -62,7 +63,10 @@ impl Database {
         let conn = self.conn()?;
         let existing = conn
             .query_row(
-                &format!("SELECT {} FROM favorites f WHERE f.id = ?1 OR f.url = ?2", FAVORITE_COLUMNS),
+                &format!(
+                    "SELECT {} FROM favorites f WHERE f.id = ?1 OR f.url = ?2",
+                    FAVORITE_COLUMNS
+                ),
                 params![info.id, info.url],
                 favorite_from_row,
             )
@@ -91,15 +95,18 @@ impl Database {
 
     pub fn remove_favorite(&self, id: &str) -> Result<(), String> {
         let conn = self.conn()?;
-        conn.execute("DELETE FROM collection_items WHERE favorite_id = ?1", params![id]).map_err(err)?;
-        conn.execute("DELETE FROM favorites WHERE id = ?1", params![id]).map_err(err)?;
+        conn.execute("DELETE FROM collection_items WHERE favorite_id = ?1", params![id])
+            .map_err(err)?;
+        conn.execute("DELETE FROM favorites WHERE id = ?1", params![id])
+            .map_err(err)?;
         Ok(())
     }
 
     /// Remember where a favorite was downloaded so slideshows don't re-download it.
     pub fn set_favorite_local_path(&self, id: &str, path: &str) -> Result<(), String> {
         let conn = self.conn()?;
-        conn.execute("UPDATE favorites SET local_path = ?2 WHERE id = ?1", params![id, path]).map_err(err)?;
+        conn.execute("UPDATE favorites SET local_path = ?2 WHERE id = ?1", params![id, path])
+            .map_err(err)?;
         Ok(())
     }
 
@@ -119,7 +126,10 @@ impl Database {
             }
             None => {
                 let mut stmt = conn
-                    .prepare(&format!("SELECT {} FROM favorites f ORDER BY f.created_at DESC", FAVORITE_COLUMNS))
+                    .prepare(&format!(
+                        "SELECT {} FROM favorites f ORDER BY f.created_at DESC",
+                        FAVORITE_COLUMNS
+                    ))
                     .map_err(err)?;
                 let rows = stmt.query_map([], favorite_from_row).map_err(err)?;
                 rows.collect::<Result<Vec<_>, _>>()
@@ -156,8 +166,10 @@ impl Database {
 
     pub fn delete_collection(&self, id: &str) -> Result<(), String> {
         let conn = self.conn()?;
-        conn.execute("DELETE FROM collection_items WHERE collection_id = ?1", params![id]).map_err(err)?;
-        conn.execute("DELETE FROM collections WHERE id = ?1", params![id]).map_err(err)?;
+        conn.execute("DELETE FROM collection_items WHERE collection_id = ?1", params![id])
+            .map_err(err)?;
+        conn.execute("DELETE FROM collections WHERE id = ?1", params![id])
+            .map_err(err)?;
         Ok(())
     }
 
@@ -224,7 +236,8 @@ impl Database {
     pub fn add_history(&self, info: &WallpaperInfo, max_entries: u32) -> Result<(), String> {
         let conn = self.conn()?;
         // Keep one entry per wallpaper: re-setting it just moves it to the top.
-        conn.execute("DELETE FROM history WHERE url = ?1", params![info.url]).map_err(err)?;
+        conn.execute("DELETE FROM history WHERE url = ?1", params![info.url])
+            .map_err(err)?;
         conn.execute(
             "INSERT INTO history (id, source, source_id, url, thumbnail_url, local_path, width, height, title, media_type, set_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
@@ -271,7 +284,8 @@ impl Database {
 
     pub fn remove_history_entry(&self, id: &str) -> Result<(), String> {
         let conn = self.conn()?;
-        conn.execute("DELETE FROM history WHERE id = ?1", params![id]).map_err(err)?;
+        conn.execute("DELETE FROM history WHERE id = ?1", params![id])
+            .map_err(err)?;
         Ok(())
     }
 
@@ -285,21 +299,27 @@ impl Database {
 
     pub fn get_setting(&self, key: &str) -> Result<Option<String>, String> {
         let conn = self.conn()?;
-        conn.query_row("SELECT value FROM settings WHERE key = ?1", params![key], |row| row.get(0))
-            .optional()
-            .map_err(err)
+        conn.query_row("SELECT value FROM settings WHERE key = ?1", params![key], |row| {
+            row.get(0)
+        })
+        .optional()
+        .map_err(err)
     }
 
     pub fn set_setting(&self, key: &str, value: &str) -> Result<(), String> {
         let conn = self.conn()?;
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)", params![key, value])
-            .map_err(err)?;
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+            params![key, value],
+        )
+        .map_err(err)?;
         Ok(())
     }
 
     pub fn delete_setting(&self, key: &str) -> Result<(), String> {
         let conn = self.conn()?;
-        conn.execute("DELETE FROM settings WHERE key = ?1", params![key]).map_err(err)?;
+        conn.execute("DELETE FROM settings WHERE key = ?1", params![key])
+            .map_err(err)?;
         Ok(())
     }
 
@@ -343,7 +363,8 @@ impl Database {
 
     pub fn remove_watched_folder(&self, path: &str) -> Result<(), String> {
         let conn = self.conn()?;
-        conn.execute("DELETE FROM watched_folders WHERE path = ?1", params![path]).map_err(err)?;
+        conn.execute("DELETE FROM watched_folders WHERE path = ?1", params![path])
+            .map_err(err)?;
         Ok(())
     }
 
@@ -439,7 +460,8 @@ mod tests {
     fn settings_round_trip_and_tolerate_old_json() {
         let db = temp_db();
         assert!(db.settings().minimize_to_tray);
-        db.set_setting("app_settings", r#"{"theme":"light","unknown_field":1}"#).unwrap();
+        db.set_setting("app_settings", r#"{"theme":"light","unknown_field":1}"#)
+            .unwrap();
         let s = db.settings();
         assert_eq!(s.theme, ThemePreference::Light);
         assert!(s.pause_on_fullscreen);

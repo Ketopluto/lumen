@@ -46,7 +46,11 @@ struct WallhavenMeta {
 impl WallhavenService {
     pub async fn search(params: &SearchParams, api_key: Option<&str>) -> Result<SearchResult, String> {
         let page = params.page();
-        let sorting = params.sorting.as_deref().unwrap_or(if params.query().is_some() { "relevance" } else { "toplist" });
+        let sorting = params.sorting.as_deref().unwrap_or(if params.query().is_some() {
+            "relevance"
+        } else {
+            "toplist"
+        });
         let categories = params
             .categories
             .as_deref()
@@ -92,7 +96,11 @@ impl WallhavenService {
                 tags: w.category.map(|c| vec![c]),
                 title: None,
                 author: None,
-                media_type: if w.file_type.as_deref() == Some("image/gif") { MediaType::Gif } else { MediaType::Image },
+                media_type: if w.file_type.as_deref() == Some("image/gif") {
+                    MediaType::Gif
+                } else {
+                    MediaType::Image
+                },
             })
             .collect();
 

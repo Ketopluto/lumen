@@ -66,7 +66,9 @@ impl KonachanService {
                     width: p.width,
                     height: p.height,
                     colors: None,
-                    tags: p.tags.map(|t| t.split_whitespace().take(8).map(|s| s.replace('_', " ")).collect()),
+                    tags: p
+                        .tags
+                        .map(|t| t.split_whitespace().take(8).map(|s| s.replace('_', " ")).collect()),
                     title: None,
                     author: p.author,
                     media_type: MediaType::Image,
@@ -74,6 +76,12 @@ impl KonachanService {
             })
             .collect();
 
-        Ok(SearchResult { wallpapers, total: None, page, has_more: full_page, seed: None })
+        Ok(SearchResult {
+            wallpapers,
+            total: None,
+            page,
+            has_more: full_page,
+            seed: None,
+        })
     }
 }

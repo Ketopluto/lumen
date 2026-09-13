@@ -79,6 +79,12 @@ impl UnsplashService {
             })
             .collect();
 
-        Ok(SearchResult { wallpapers, total: resp.total, page, has_more: page < total_pages, seed: None })
+        Ok(SearchResult {
+            wallpapers,
+            total: resp.total,
+            page,
+            has_more: page < total_pages,
+            seed: None,
+        })
     }
 }

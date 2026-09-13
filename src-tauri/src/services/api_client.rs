@@ -42,10 +42,7 @@ struct DownloadProgress<'a> {
 
 impl ApiClient {
     /// GET request returning JSON deserialized into T.
-    pub async fn get_json<T: serde::de::DeserializeOwned>(
-        url: &str,
-        headers: &[(&str, &str)],
-    ) -> Result<T, String> {
+    pub async fn get_json<T: serde::de::DeserializeOwned>(url: &str, headers: &[(&str, &str)]) -> Result<T, String> {
         let mut req = api_client().get(url);
         for (k, v) in headers {
             req = req.header(*k, *v);
@@ -59,17 +56,14 @@ impl ApiClient {
                 _ => format!("HTTP {}", status),
             });
         }
-        resp.json::<T>().await.map_err(|e| format!("Unexpected response: {}", e))
+        resp.json::<T>()
+            .await
+            .map_err(|e| format!("Unexpected response: {}", e))
     }
 
     /// Stream a file to disk, emitting `download-progress` events.
     /// Writes to a `.part` file first so interrupted downloads are never mistaken for complete ones.
-    pub async fn download_file(
-        app: &tauri::AppHandle,
-        id: &str,
-        url: &str,
-        dest: &Path,
-    ) -> Result<(), String> {
+    pub async fn download_file(app: &tauri::AppHandle, id: &str, url: &str, dest: &Path) -> Result<(), String> {
         if let Some(parent) = dest.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
@@ -117,7 +111,14 @@ impl ApiClient {
             return Err(e);
         }
         std::fs::rename(&part, dest).map_err(|e| e.to_string())?;
-        let _ = app.emit("download-progress", DownloadProgress { id, received, total: Some(received) });
+        let _ = app.emit(
+            "download-progress",
+            DownloadProgress {
+                id,
+                received,
+                total: Some(received),
+            },
+        );
         Ok(())
     }
 }

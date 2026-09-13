@@ -4,8 +4,8 @@ mod services;
 mod utils;
 
 use services::database::Database;
-use services::scheduler::SlideshowScheduler;
 use services::desktop;
+use services::scheduler::SlideshowScheduler;
 use services::wallpaper_engine::{self, LiveState};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
@@ -87,9 +87,8 @@ pub fn run() {
         env!("CARGO_PKG_VERSION"),
         std::env::args().skip(1).collect::<Vec<_>>().join(" ")
     );
-    let db = Arc::new(
-        Database::new(&utils::app_data_dir().join("lumen.db")).expect("Failed to open the Lumen database"),
-    );
+    let db =
+        Arc::new(Database::new(&utils::app_data_dir().join("lumen.db")).expect("Failed to open the Lumen database"));
     let scheduler = Arc::new(SlideshowScheduler::new(db.clone()));
     let start_minimized = std::env::args().any(|a| a == "--minimized");
 
@@ -195,14 +194,21 @@ pub fn run() {
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
                         show_main(tray.app_handle());
                     }
                 })
                 .build(app)?;
 
             let args: Vec<String> = std::env::args().collect();
-            let cwd = std::env::current_dir().map(|d| d.to_string_lossy().to_string()).unwrap_or_default();
+            let cwd = std::env::current_dir()
+                .map(|d| d.to_string_lossy().to_string())
+                .unwrap_or_default();
             let opened_file = apply_from_args(app.handle(), &args, &cwd);
             if !start_minimized && !opened_file {
                 create_main(app.handle())?;

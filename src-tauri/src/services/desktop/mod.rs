@@ -97,10 +97,7 @@ pub fn current_static_wallpaper() -> Option<String> {
 }
 
 /// Runs `f` on the UI thread and waits for the result.
-pub fn on_main<T: Send + 'static>(
-    app: &AppHandle,
-    f: impl FnOnce() -> T + Send + 'static,
-) -> Result<T, String> {
+pub fn on_main<T: Send + 'static>(app: &AppHandle, f: impl FnOnce() -> T + Send + 'static) -> Result<T, String> {
     let (tx, rx) = std::sync::mpsc::sync_channel(1);
     app.run_on_main_thread(move || {
         let _ = tx.send(f());

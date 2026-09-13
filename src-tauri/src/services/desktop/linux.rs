@@ -33,9 +33,7 @@ pub fn session() -> SessionType {
             return SessionType::Wayland;
         }
     }
-    if std::env::var_os("WAYLAND_DISPLAY").is_some()
-        || std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("wayland")
-    {
+    if std::env::var_os("WAYLAND_DISPLAY").is_some() || std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("wayland") {
         SessionType::Wayland
     } else if std::env::var_os("DISPLAY").is_some() {
         SessionType::X11
