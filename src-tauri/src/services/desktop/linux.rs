@@ -2,6 +2,9 @@
 //! wallpaper surfaces land in later stages.
 
 use super::{Capabilities, SurfaceSpec};
+
+#[path = "linux_x11.rs"]
+mod x11;
 use crate::models::FitMode;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -59,15 +62,20 @@ pub fn desktop_environment() -> String {
 pub fn capabilities() -> Capabilities {
     let session = session();
     let desktop = desktop_environment();
-    let mut caps = Capabilities::full("linux").without_live(match session {
-        SessionType::Wayland if desktop.contains("gnome") => {
-            "GNOME on Wayland doesn't let apps draw on the desktop, so live wallpapers can't work \
-             here. Still images work fine. For live wallpapers, log out and choose \
-             \"GNOME on Xorg\" at the login screen."
-                .to_string()
+    let mut caps = Capabilities::full("linux");
+    caps = match session {
+        // Every X11 desktop understands a desktop-type window.
+        SessionType::X11 => caps,
+        SessionType::Wayland if desktop.contains("gnome") => caps.without_live(
+            "GNOME on Wayland does not let apps draw on the desktop, so live wallpapers cannot work \
+             here. Still images work fine. For live wallpapers, log out and choose \"GNOME on Xorg\" \
+             at the login screen.",
+        ),
+        SessionType::Wayland => {
+            caps.without_live("Live wallpapers on Wayland compositors are still being built. Still images work now.")
         }
-        _ => "Live wallpapers on Linux are still being built. Still images work now.".to_string(),
-    });
+        SessionType::Unknown => caps.without_live("Lumen could not tell which display server this session uses."),
+    };
     caps.session = Some(session.as_str());
     caps.desktop = Some(desktop);
     // No way to inspect other windows on Wayland, by design.
@@ -81,11 +89,21 @@ pub fn plan_surfaces(_app: &AppHandle) -> Vec<SurfaceSpec> {
     SurfaceSpec::spanning()
 }
 
-pub fn attach(_window: &WebviewWindow, _spec: &SurfaceSpec) -> Result<(), String> {
-    Err("Live wallpapers on Linux are still being built".into())
+pub fn attach(window: &WebviewWindow, spec: &SurfaceSpec) -> Result<(), String> {
+    match session() {
+        SessionType::X11 => x11::attach(window, spec),
+        _ => Err(capabilities()
+            .live_unsupported_reason
+            .clone()
+            .unwrap_or_else(|| "Live wallpapers are not supported on this desktop".into())),
+    }
 }
 
-pub fn refit(_window: &WebviewWindow, _spec: &SurfaceSpec) {}
+pub fn refit(window: &WebviewWindow, spec: &SurfaceSpec) {
+    if session() == SessionType::X11 {
+        x11::refit(window, spec);
+    }
+}
 
 // ── Fullscreen (X11 only) ──────────────────────────────────────────────────
 
