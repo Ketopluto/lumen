@@ -1,0 +1,125 @@
+name: Release
+
+# Tag a commit to build installers for every platform:
+#     git tag v4.0.0 && git push origin v4.0.0
+# The release is created as a draft, so nothing is public until it is reviewed and published.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build'
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  draft:
+    name: Draft the release
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.draft.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create or reuse the draft
+        id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # A draft has no git tag yet, so it can only be found by listing releases.
+          find_id() {
+            gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+              --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1
+          }
+          id=$(find_id)
+          if [ -z "$id" ]; then
+            gh release create "$TAG" --draft --title "Lumen ${TAG#v}" \
+              --notes-file .github/RELEASE_NOTES.md
+            id=$(find_id)
+          fi
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: draft
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows (x64)
+            os: windows-latest
+            args: ''
+          # Two separate Macs rather than a universal binary: half the download, and the two
+          # architectures are built and signed independently.
+          - name: macOS (Apple Silicon)
+            os: macos-14
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - name: macOS (Intel)
+            os: macos-14
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - name: Linux (x64)
+            os: ubuntu-22.04
+            args: ''
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # webkit2gtk 4.1 is what Tauri 2 links against; ubuntu-22.04 is the oldest image that
+      # carries it, which keeps the glibc floor as low as we can manage. The GStreamer packages
+      # are what bundleMediaFramework copies into the AppImage, so video plays there too.
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
+            build-essential curl wget file libxdo-dev libssl-dev libgtk-layer-shell-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+            gstreamer1.0-libav
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.draft.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+      # The bare executable, for people who would rather not run an installer.
+      - name: Upload the portable Windows build
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          cp src-tauri/target/release/lumen.exe "Lumen_${version}_x64_portable.exe"
+          gh release upload "$TAG" "Lumen_${version}_x64_portable.exe" --clobber
