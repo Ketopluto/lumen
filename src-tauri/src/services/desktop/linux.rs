@@ -97,7 +97,9 @@ pub fn set_autostart(_enable: bool) -> Result<(), String> {
     Err("Starting Lumen at login isn't wired up on Linux yet".into())
 }
 
-pub fn set_static_wallpaper(path: &str, _fit: &FitMode) -> Result<(), String> {
+pub fn set_static_wallpaper(path: &str, fit: &FitMode) -> Result<(), String> {
+    // Honoured by the GNOME, KDE, Cinnamon, MATE and XFCE paths; other desktops ignore it.
+    let _ = ::wallpaper::set_mode(fit.to_mode());
     ::wallpaper::set_from_path(path).map_err(|e| format!("Failed to set wallpaper: {}", e))
 }
 

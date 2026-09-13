@@ -14,6 +14,9 @@ pub enum FitMode {
 }
 
 impl FitMode {
+    /// Maps to the `wallpaper` crate mode. macOS sets the fit through NSWorkspace instead, so this
+    /// is unused there.
+    #[allow(dead_code)]
     pub fn to_mode(&self) -> ::wallpaper::Mode {
         match self {
             Self::Fill => ::wallpaper::Mode::Crop,
