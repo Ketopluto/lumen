@@ -11,6 +11,7 @@ pub mod media;
 pub mod nasa;
 pub mod pexels;
 pub mod scheduler;
+pub mod selftest;
 pub mod unsplash;
 pub mod wallhaven;
 pub mod wallpaper_engine;

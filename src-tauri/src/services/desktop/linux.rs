@@ -1,7 +1,7 @@
 //! Linux: session and desktop detection, power and fullscreen state, and the choice between the
 //! X11 and Wayland wallpaper surfaces.
 
-use super::{Capabilities, SurfaceSpec};
+use super::{Capabilities, SurfaceReport, SurfaceSpec};
 
 use crate::models::FitMode;
 use std::path::{Path, PathBuf};
@@ -174,6 +174,18 @@ fn x11_probe() -> Option<&'static X11Probe> {
 
 /// True when the focused window claims `_NET_WM_STATE_FULLSCREEN` — the same signal a compositor
 /// uses to unredirect a game. Wayland has no way to ask about other windows, by design.
+pub fn describe(window: &WebviewWindow) -> SurfaceReport {
+    match session() {
+        SessionType::X11 => x11::describe(window),
+        SessionType::Wayland => wayland::describe(window),
+        SessionType::Unknown => {
+            let mut report = SurfaceReport::default();
+            report.detail("error", "Lumen could not tell which display server this session uses");
+            report
+        }
+    }
+}
+
 pub fn fullscreen_app_active() -> bool {
     use x11rb::protocol::xproto::{AtomEnum, ConnectionExt as _};
 

@@ -39,7 +39,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
-            build-essential curl wget file libxdo-dev libssl-dev \
+            build-essential curl wget file libxdo-dev libssl-dev xvfb \
             libgtk-layer-shell-dev
 
       - run: npm ci
@@ -57,6 +57,28 @@ jobs:
 
       - name: Tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      # Puts a real surface on a real window server and asks the platform where it ended up. On
+      # macOS and Linux this is the only check that runs the placement code rather than compiling
+      # it. Exit 2 means there was nothing to test here; only exit 1 is a failure.
+      - name: Live surface placement
+        shell: bash
+        env:
+          LUMEN_DATA_DIR: ${{ runner.temp }}/lumen-selftest
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+          WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+        run: |
+          cargo build --manifest-path src-tauri/Cargo.toml
+          binary=src-tauri/target/debug/lumen
+          [ "$RUNNER_OS" = "Windows" ] && binary=$binary.exe
+          code=0
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a "$binary" --selftest || code=$?
+          else
+            "$binary" --selftest || code=$?
+          fi
+          echo "selftest exit code: $code"
+          [ "$code" -ne 1 ]
 
       # attach() owns visibility — see the contract in services/desktop/mod.rs.
       - name: The engine must not call show() on a live surface

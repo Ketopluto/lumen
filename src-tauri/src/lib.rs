@@ -108,13 +108,19 @@ pub fn run() {
         Arc::new(Database::new(&utils::app_data_dir().join("lumen.db")).expect("Failed to open the Lumen database"));
     let scheduler = Arc::new(SlideshowScheduler::new(db.clone()));
     let start_minimized = std::env::args().any(|a| a == "--minimized");
+    let selftest = services::selftest::requested(&std::env::args().collect::<Vec<_>>());
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+    let mut builder = tauri::Builder::default();
+    // A second launch normally hands its arguments to the running Lumen and exits — which would
+    // make `--selftest` report nothing at all on a machine where Lumen is already running.
+    if !selftest {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             if !apply_from_args(app, &args, &cwd) {
                 show_main(app);
             }
-        }))
+        }));
+    }
+    builder
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
@@ -168,6 +174,14 @@ pub fn run() {
         .setup(move |app| {
             use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
             use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+            // Before anything touches this machine's desktop: place one surface, report where it
+            // landed, exit. It runs off the main thread so the event loop can answer it.
+            if selftest {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || std::process::exit(services::selftest::run(&handle)));
+                return Ok(());
+            }
 
             // One-time move to the persistent defaults (start with Windows, keep playing on battery)
             // for settings saved before they existed. Later changes in Settings are respected.

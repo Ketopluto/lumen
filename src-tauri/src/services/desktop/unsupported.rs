@@ -1,6 +1,6 @@
 //! Anything that isn't Windows, macOS or Linux (BSD, …): browsing works, the desktop doesn't.
 
-use super::{Capabilities, SurfaceSpec};
+use super::{Capabilities, SurfaceReport, SurfaceSpec};
 use crate::models::FitMode;
 use tauri::{AppHandle, WebviewWindow};
 
@@ -38,4 +38,10 @@ pub fn set_static_wallpaper(_path: &str, _fit: &FitMode) -> Result<(), String> {
 
 pub fn current_static_wallpaper() -> Option<String> {
     None
+}
+
+pub fn describe(_window: &WebviewWindow) -> SurfaceReport {
+    let mut report = SurfaceReport::default();
+    report.detail("error", "this system has no desktop backend");
+    report
 }

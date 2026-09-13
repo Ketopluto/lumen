@@ -1,6 +1,6 @@
 //! Windows: the live wallpaper window becomes a child of the desktop's WorkerW, behind the icons.
 
-use super::{Capabilities, SurfaceSpec};
+use super::{Capabilities, SurfaceReport, SurfaceSpec};
 use crate::models::FitMode;
 use std::ffi::c_void;
 use tauri::{AppHandle, WebviewWindow};
@@ -164,4 +164,30 @@ pub fn set_static_wallpaper(path: &str, fit: &FitMode) -> Result<(), String> {
 
 pub fn current_static_wallpaper() -> Option<String> {
     ::wallpaper::get().ok().filter(|p| !p.is_empty())
+}
+
+/// Reports where the surface actually landed — see `SurfaceReport`.
+pub fn describe(window: &WebviewWindow) -> SurfaceReport {
+    let mut report = SurfaceReport::default();
+    let Ok(hwnd) = window.hwnd() else {
+        report.detail("error", "this window has no HWND");
+        return report;
+    };
+    unsafe {
+        let hwnd = HWND(hwnd.0);
+        let parent = GetAncestor(hwnd, GA_PARENT);
+        let mut class = [0u16; 64];
+        let read = GetClassNameW(parent, &mut class);
+        let parent_class = String::from_utf16_lossy(&class[..read.max(0) as usize]);
+        report.visible = IsWindowVisible(hwnd).as_bool();
+        report.placed = parent_class == "WorkerW" || parent_class == "Progman";
+        report
+            .detail("parent_class", &parent_class)
+            .detail("parent", format!("{:?}", parent.0))
+            .detail(
+                "child_style",
+                format!("{}", GetWindowLongPtrW(hwnd, GWL_STYLE) & WS_CHILD.0 as isize != 0),
+            );
+    }
+    report
 }

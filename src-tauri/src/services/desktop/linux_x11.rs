@@ -4,7 +4,7 @@
 //! `_NET_WM_WINDOW_TYPE_DESKTOP`, which puts the window behind normal windows and behind the icon
 //! layer, while `keep_below` and an empty input shape keep it out of the way of clicks.
 
-use super::SurfaceSpec;
+use super::{SurfaceReport, SurfaceSpec};
 use gtk::gdk;
 use gtk::prelude::*;
 use tauri::WebviewWindow;
@@ -67,4 +67,25 @@ pub fn refit(window: &WebviewWindow, _spec: &SurfaceSpec) {
         gtk_window.resize(bounds.width(), bounds.height());
         super::make_click_through(&gtk_window);
     }
+}
+
+/// Reports where the surface actually landed — see `SurfaceReport`.
+pub fn describe(window: &WebviewWindow) -> SurfaceReport {
+    let mut report = SurfaceReport::default();
+    let gtk_window = match window.gtk_window() {
+        Ok(gtk_window) => gtk_window,
+        Err(e) => {
+            report.detail("error", e);
+            return report;
+        }
+    };
+    let hint = gtk_window.type_hint();
+    report.visible = gtk_window.is_visible();
+    report.placed = hint == gdk::WindowTypeHint::Desktop;
+    let (width, height) = gtk_window.size();
+    report
+        .detail("type_hint", format!("{:?}", hint))
+        .detail("size", format!("{}x{}", width, height))
+        .detail("mapped", gtk_window.is_mapped());
+    report
 }

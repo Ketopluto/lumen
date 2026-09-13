@@ -14,7 +14,7 @@
 
 mod types;
 
-pub use types::{Capabilities, SurfaceSpec};
+pub use types::{Capabilities, SurfaceReport, SurfaceSpec};
 
 use crate::models::FitMode;
 use std::sync::OnceLock;
@@ -51,6 +51,7 @@ const _CONTRACT: () = {
     let _: fn() -> bool = imp::on_battery;
     let _: fn(&str, &FitMode) -> Result<(), String> = imp::set_static_wallpaper;
     let _: fn() -> Option<String> = imp::current_static_wallpaper;
+    let _: fn(&WebviewWindow) -> SurfaceReport = imp::describe;
 };
 
 /// Computed once: reading the session type and monitor layout is not free.
@@ -72,6 +73,11 @@ pub fn attach(window: &WebviewWindow, spec: &SurfaceSpec) -> Result<(), String> 
 /// Re-asserts placement after the desktop, resolution or monitor layout changed. Main thread only.
 pub fn refit(window: &WebviewWindow, spec: &SurfaceSpec) {
     imp::refit(window, spec)
+}
+
+/// What `--selftest` sees: where the surface really ended up. Main thread only.
+pub fn describe(window: &WebviewWindow) -> SurfaceReport {
+    imp::describe(window)
 }
 
 pub fn fullscreen_app_active() -> bool {

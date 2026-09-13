@@ -3,7 +3,7 @@
 //! Beta. The window placement is exercised by CI, but nobody has confirmed visually that the video
 //! appears behind the icons, so `Capabilities::beta` is set and the UI says so.
 
-use super::{Capabilities, SurfaceSpec};
+use super::{Capabilities, SurfaceReport, SurfaceSpec};
 use crate::models::FitMode;
 use objc2::msg_send;
 use objc2::runtime::{AnyObject, Bool};
@@ -95,4 +95,35 @@ pub fn set_static_wallpaper(path: &str, _fit: &FitMode) -> Result<(), String> {
 pub fn current_static_wallpaper() -> Option<String> {
     // Asking costs an AppleScript round trip and a permission prompt, so don't.
     None
+}
+
+/// Reports where the surface actually landed — see `SurfaceReport`. This is what CI checks on a
+/// real window server, since nobody has a Mac to look at.
+pub fn describe(window: &WebviewWindow) -> SurfaceReport {
+    let mut report = SurfaceReport::default();
+    let Ok(ns) = window.ns_window() else {
+        report.detail("error", "this window has no NSWindow");
+        return report;
+    };
+    let ns = ns as *mut AnyObject;
+    if ns.is_null() {
+        report.detail("error", "this window has no NSWindow");
+        return report;
+    }
+    // Safety: same as `attach` — a real NSWindow, inspected on the main thread.
+    unsafe {
+        let level: isize = msg_send![ns, level];
+        let ignores_mouse: Bool = msg_send![ns, ignoresMouseEvents];
+        let visible: Bool = msg_send![ns, isVisible];
+        let behavior: usize = msg_send![ns, collectionBehavior];
+        report.visible = visible.as_bool();
+        report.placed = level == DESKTOP_WINDOW_LEVEL && ignores_mouse.as_bool();
+        report
+            .detail("level", level)
+            .detail("desktop_level", DESKTOP_WINDOW_LEVEL)
+            .detail("ignores_mouse", ignores_mouse.as_bool())
+            .detail("collection_behavior", behavior)
+            .detail("expected_collection_behavior", COLLECTION_BEHAVIOR);
+    }
+    report
 }

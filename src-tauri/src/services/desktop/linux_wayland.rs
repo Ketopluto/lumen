@@ -4,7 +4,7 @@
 //! dependency: on a compositor without it (or on GNOME, which has no such protocol at all) the
 //! capability simply turns off instead of the app failing to start.
 
-use super::SurfaceSpec;
+use super::{SurfaceReport, SurfaceSpec};
 use gtk::glib::translate::ToGlibPtr;
 use gtk::prelude::*;
 use std::ffi::{c_char, c_int, c_void};
@@ -18,6 +18,7 @@ const EDGES: [c_int; 4] = [0, 1, 2, 3]; // left, right, top, bottom
 struct LayerShell {
     _library: libloading::Library,
     is_supported: unsafe extern "C" fn() -> c_int,
+    is_layer_window: unsafe extern "C" fn(*mut c_void) -> c_int,
     init_for_window: unsafe extern "C" fn(*mut c_void),
     set_layer: unsafe extern "C" fn(*mut c_void, c_int),
     set_anchor: unsafe extern "C" fn(*mut c_void, c_int, c_int),
@@ -37,6 +38,7 @@ fn layer_shell() -> Option<&'static LayerShell> {
                 .find_map(|name| libloading::Library::new(name).ok())?;
             let shell = LayerShell {
                 is_supported: *library.get(b"gtk_layer_is_supported\0").ok()?,
+                is_layer_window: *library.get(b"gtk_layer_is_layer_window\0").ok()?,
                 init_for_window: *library.get(b"gtk_layer_init_for_window\0").ok()?,
                 set_layer: *library.get(b"gtk_layer_set_layer\0").ok()?,
                 set_anchor: *library.get(b"gtk_layer_set_anchor\0").ok()?,
@@ -104,4 +106,29 @@ pub fn refit(_window: &WebviewWindow, _spec: &SurfaceSpec) {
     // The compositor keeps a layer surface anchored to its output across resolution changes, so
     // there is nothing to re-assert. A monitor appearing or disappearing changes the surface plan,
     // which the watchdog notices on its own.
+}
+
+/// Reports where the surface actually landed — see `SurfaceReport`.
+pub fn describe(window: &WebviewWindow) -> SurfaceReport {
+    let mut report = SurfaceReport::default();
+    let Some(shell) = layer_shell() else {
+        report.detail("error", MISSING_LIBRARY);
+        return report;
+    };
+    let gtk_window = match window.gtk_window() {
+        Ok(gtk_window) => gtk_window,
+        Err(e) => {
+            report.detail("error", e);
+            return report;
+        }
+    };
+    let raw: *mut gtk::ffi::GtkWindow = gtk_window.to_glib_none().0;
+    // Safety: a live GtkWindow pointer, and the library was loaded from the same process.
+    unsafe {
+        report.placed = (shell.is_layer_window)(raw as *mut c_void) != 0;
+        report.detail("compositor_supports_layer_shell", (shell.is_supported)() != 0);
+    }
+    report.visible = gtk_window.is_visible();
+    report.detail("mapped", gtk_window.is_mapped());
+    report
 }

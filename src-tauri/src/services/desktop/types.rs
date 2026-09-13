@@ -101,3 +101,23 @@ impl SurfaceSpec {
         }]
     }
 }
+
+/// What `--selftest` found out about a live wallpaper surface it just created.
+///
+/// This is the only way the macOS and Linux placement code is checked by anything other than the
+/// compiler: CI runs the binary on a real window server and reads this back.
+#[derive(Debug, Default, Serialize)]
+pub struct SurfaceReport {
+    /// Whether the surface really ended up where a wallpaper belongs.
+    pub placed: bool,
+    pub visible: bool,
+    /// Whatever the platform can tell us, for the CI log.
+    pub details: std::collections::BTreeMap<String, String>,
+}
+
+impl SurfaceReport {
+    pub fn detail(&mut self, key: &str, value: impl std::fmt::Display) -> &mut Self {
+        self.details.insert(key.to_string(), value.to_string());
+        self
+    }
+}
