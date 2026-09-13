@@ -247,7 +247,7 @@ pub fn set_live(app: &AppHandle, path: &str) -> Result<(), String> {
             .shadow(false)
             .focused(false)
             .visible(false)
-            .initialization_script(&desktop::bootstrap_script());
+            .initialization_script(desktop::bootstrap_script());
         if let Some((x, y, w, h)) = spec.bounds {
             builder = builder.position(x as f64, y as f64).inner_size(w as f64, h as f64);
         }
@@ -322,7 +322,7 @@ pub fn spawn_pause_monitor(app: AppHandle) {
                 idle_ticks += 1;
                 // A wallpaper saved earlier may not have started yet (at logon the desktop or a
                 // cloud folder can lag behind), so keep trying every ~10s.
-                if idle_ticks % 5 == 0 {
+                if idle_ticks.is_multiple_of(5) {
                     restore_live(&app);
                 }
                 continue;
@@ -334,7 +334,7 @@ pub fn spawn_pause_monitor(app: AppHandle) {
             if missing {
                 missing_ticks += 1;
                 // Skip one tick (a window may be mid-creation), then retry every ~10s.
-                if missing_ticks == 2 || missing_ticks % 5 == 0 {
+                if missing_ticks == 2 || missing_ticks.is_multiple_of(5) {
                     match set_live(&app, &path) {
                         Ok(()) => log::info!("Live wallpaper restored after the desktop was rebuilt"),
                         Err(e) => log::warn!("Live wallpaper watchdog: {}", e),

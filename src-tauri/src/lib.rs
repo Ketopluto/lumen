@@ -42,7 +42,7 @@ fn create_main(app: &AppHandle) -> Result<(), String> {
         .ok_or("missing main window config")?;
     config.visible = true;
     let window = tauri::WebviewWindowBuilder::from_config(app, &config)
-        .and_then(|builder| builder.initialization_script(&desktop::bootstrap_script()).build())
+        .and_then(|builder| builder.initialization_script(desktop::bootstrap_script()).build())
         .map_err(|e| e.to_string())?;
     let _ = window.set_focus();
     Ok(())
