@@ -32,10 +32,6 @@ pub fn on_battery() -> bool {
     false
 }
 
-pub fn set_autostart(_enable: bool) -> Result<(), String> {
-    Err("Starting at login isn't supported on this system".into())
-}
-
 pub fn set_static_wallpaper(_path: &str, _fit: &FitMode) -> Result<(), String> {
     Err("Setting the wallpaper isn't supported on this system".into())
 }

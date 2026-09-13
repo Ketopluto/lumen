@@ -1,4 +1,5 @@
 pub mod api_client;
+pub mod autostart;
 pub mod bing;
 pub mod commons;
 pub mod database;

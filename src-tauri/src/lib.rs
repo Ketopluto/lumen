@@ -98,6 +98,10 @@ pub fn run() {
                 show_main(app);
             }
         }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--minimized"]),
+        ))
         .plugin(tauri_plugin_dialog::init())
         .manage(db.clone())
         .manage(scheduler.clone())
@@ -160,9 +164,9 @@ pub fn run() {
             // Keep the startup entry pointing at this exe (it moves when Lumen is reinstalled).
             // Debug builds skip this so a dev build never registers itself.
             #[cfg(not(debug_assertions))]
-            match desktop::set_autostart(settings.start_on_boot) {
-                Ok(()) => log::info!("start with Windows: {}", settings.start_on_boot),
-                Err(e) => log::warn!("could not set start-with-Windows: {}", e),
+            match services::autostart::set(app.handle(), settings.start_on_boot) {
+                Ok(()) => log::info!("start with the session: {}", settings.start_on_boot),
+                Err(e) => log::warn!("could not set start-at-login: {}", e),
             }
 
             // Local files the UI may display: thumbnails, downloads and watched folders.

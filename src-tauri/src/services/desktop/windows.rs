@@ -157,39 +157,6 @@ pub fn on_battery() -> bool {
     unsafe { GetSystemPowerStatus(&mut status).is_ok() && status.ACLineStatus == 0 }
 }
 
-pub fn set_autostart(enable: bool) -> Result<(), String> {
-    // Only the Run key. Registering a scheduled task as well made Windows Defender's behaviour
-    // heuristics flag Lumen as malware (Behavior:Win32/Execution.A!ml) and quarantine it.
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE};
-    use winreg::RegKey;
-    let run = RegKey::predef(HKEY_CURRENT_USER)
-        .open_subkey_with_flags(
-            r"Software\Microsoft\Windows\CurrentVersion\Run",
-            KEY_SET_VALUE | KEY_QUERY_VALUE,
-        )
-        .map_err(|e| e.to_string())?;
-    let current = run.get_value::<String, _>("Lumen").ok();
-    if enable {
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-        let value = format!("\"{}\" --minimized", exe.display());
-        // Write only when it actually changes: rewriting an autostart entry on every launch is
-        // another pattern antivirus heuristics score against.
-        if current.as_deref() == Some(value.as_str()) {
-            return Ok(());
-        }
-        run.set_value("Lumen", &value).map_err(|e| e.to_string())
-    } else {
-        if current.is_none() {
-            return Ok(());
-        }
-        match run.delete_value("Lumen") {
-            Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(e.to_string()),
-        }
-    }
-}
-
 pub fn set_static_wallpaper(path: &str, fit: &FitMode) -> Result<(), String> {
     let _ = ::wallpaper::set_mode(fit.to_mode());
     ::wallpaper::set_from_path(path).map_err(|e| format!("Failed to set wallpaper: {}", e))

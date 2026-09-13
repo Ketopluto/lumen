@@ -1,6 +1,5 @@
 use crate::models::*;
 use crate::services::database::Database;
-use crate::services::desktop;
 use crate::services::wallpaper_engine::LIVE_LABEL;
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
@@ -24,7 +23,8 @@ pub fn update_settings(
 
     let previous = db.settings();
     if previous.start_on_boot != settings.start_on_boot {
-        desktop::set_autostart(settings.start_on_boot).map_err(|e| format!("Couldn't change start-on-login: {}", e))?;
+        crate::services::autostart::set(&app, settings.start_on_boot)
+            .map_err(|e| format!("Could not change start-at-login: {}", e))?;
     }
     if previous.download_dir != settings.download_dir {
         std::fs::create_dir_all(&settings.download_dir)

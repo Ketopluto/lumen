@@ -49,7 +49,6 @@ const _CONTRACT: () = {
     let _: fn(&WebviewWindow, &SurfaceSpec) = imp::refit;
     let _: fn() -> bool = imp::fullscreen_app_active;
     let _: fn() -> bool = imp::on_battery;
-    let _: fn(bool) -> Result<(), String> = imp::set_autostart;
     let _: fn(&str, &FitMode) -> Result<(), String> = imp::set_static_wallpaper;
     let _: fn() -> Option<String> = imp::current_static_wallpaper;
 };
@@ -81,10 +80,6 @@ pub fn fullscreen_app_active() -> bool {
 
 pub fn on_battery() -> bool {
     imp::on_battery()
-}
-
-pub fn set_autostart(enable: bool) -> Result<(), String> {
-    imp::set_autostart(enable)
 }
 
 pub fn set_static_wallpaper(path: &str, fit: &FitMode) -> Result<(), String> {

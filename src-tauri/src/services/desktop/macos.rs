@@ -11,7 +11,6 @@ pub fn capabilities() -> Capabilities {
     caps.fit_modes = vec![FitMode::Fill, FitMode::Fit, FitMode::Stretch, FitMode::Center];
     // A window cannot span displays while "Displays have separate Spaces" is on (the default).
     caps.live_all_monitors = false;
-    caps.autostart = false;
     caps.pause_on_fullscreen = false;
     caps.custom_titlebar = false;
     caps.beta = true;
@@ -34,10 +33,6 @@ pub fn fullscreen_app_active() -> bool {
 
 pub fn on_battery() -> bool {
     false
-}
-
-pub fn set_autostart(_enable: bool) -> Result<(), String> {
-    Err("Opening Lumen at login isn't wired up on macOS yet".into())
 }
 
 pub fn set_static_wallpaper(path: &str, _fit: &FitMode) -> Result<(), String> {
