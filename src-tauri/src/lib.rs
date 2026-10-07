@@ -107,6 +107,10 @@ pub fn run() {
     let db =
         Arc::new(Database::new(&utils::app_data_dir().join("lumen.db")).expect("Failed to open the Lumen database"));
     let scheduler = Arc::new(SlideshowScheduler::new(db.clone()));
+    // Answer the diagnostic before anything touches the database or the desktop.
+    if services::netcheck::requested(&std::env::args().collect::<Vec<_>>()) {
+        std::process::exit(services::netcheck::run());
+    }
     let start_minimized = std::env::args().any(|a| a == "--minimized");
     let selftest = services::selftest::requested(&std::env::args().collect::<Vec<_>>());
 

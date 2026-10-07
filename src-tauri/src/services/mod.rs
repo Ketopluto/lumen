@@ -9,6 +9,7 @@ pub mod local;
 pub mod logging;
 pub mod media;
 pub mod nasa;
+pub mod netcheck;
 pub mod pexels;
 pub mod safebooru;
 pub mod scheduler;

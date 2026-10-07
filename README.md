@@ -8,13 +8,13 @@ behind your desktop icons.
 
 Download from the [latest release](https://github.com/Ketopluto/lumen/releases/latest).
 
-**Windows 10/11 (64-bit)** — run `Lumen_4.0.0_x64-setup.exe`. It installs for your user only, no
+**Windows 10/11 (64-bit)** — run `Lumen_4.0.1_x64-setup.exe`. It installs for your user only, no
 admin needed, and adds Start menu and desktop shortcuts. Prefer no installer? Take
-`Lumen_4.0.0_x64_portable.exe` and run it directly. If Windows says "Windows protected your PC",
+`Lumen_4.0.1_x64_portable.exe` and run it directly. If Windows says "Windows protected your PC",
 click **More info** → **Run anyway**: Lumen isn't code-signed, so SmartScreen doesn't recognise
 it. WebView2 is already part of Windows 11; on older builds the installer adds it.
 
-**macOS 11 or newer** — take `Lumen_4.0.0_aarch64.dmg` on Apple Silicon or `Lumen_4.0.0_x64.dmg`
+**macOS 11 or newer** — take `Lumen_4.0.1_aarch64.dmg` on Apple Silicon or `Lumen_4.0.1_x64.dmg`
 on Intel, and drag Lumen to Applications. The build isn't notarised, so macOS will call it
 damaged. Clear the quarantine flag once, in Terminal:
 

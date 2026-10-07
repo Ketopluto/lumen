@@ -44,13 +44,47 @@ struct DownloadProgress<'a> {
     total: Option<u64>,
 }
 
+/// Everything reqwest knows, not just the summary: the cause of a TLS failure is always a few
+/// layers further down.
+fn error_chain(e: &reqwest::Error) -> String {
+    let mut chain = e.to_string();
+    let mut source = std::error::Error::source(e);
+    while let Some(cause) = source {
+        chain.push_str(&format!("\n  caused by: {}", cause));
+        source = cause.source();
+    }
+    chain
+}
+
+/// A rejected certificate is worth explaining. On a managed machine it is almost never a broken
+/// website: something is decrypting HTTPS and signing it with a CA this computer is supposed to
+/// trust. Lumen reads the system certificate store, so if that CA is installed properly this
+/// cannot happen - and if it is not, no amount of retrying will help.
+pub fn explain(e: &reqwest::Error) -> String {
+    let chain = error_chain(e);
+    let lowercase = chain.to_lowercase();
+    let certificate_problem = lowercase.contains("certificate")
+        || lowercase.contains("unknownissuer")
+        || lowercase.contains("invalid peer")
+        || lowercase.contains("tls");
+    if certificate_problem {
+        return "Could not verify a secure connection to this source. Something on this network is \
+                inspecting HTTPS traffic (Netskope, Zscaler and similar corporate proxies do this) \
+                and Lumen does not trust the certificate it presented. Ask IT to install that \
+                proxy's certificate in this computer's trusted root store, then restart Lumen. \
+                Run `lumen --netcheck` in a terminal for the details."
+            .to_string();
+    }
+    format!("Network error: {}", e)
+}
+
 /// One request, with the HTTP failures every source shares turned into something a person can read.
 async fn get(url: &str, headers: &[(&str, &str)]) -> Result<reqwest::Response, String> {
     let mut req = api_client().get(url);
     for (k, v) in headers {
         req = req.header(*k, *v);
     }
-    let resp = req.send().await.map_err(|e| format!("Network error: {}", e))?;
+    let resp = req.send().await.map_err(|e| explain(&e))?;
     let status = resp.status();
     if !status.is_success() {
         return Err(match status.as_u16() {
@@ -82,6 +116,15 @@ impl ApiClient {
             .map_err(|e| format!("Unexpected response: {}", e))
     }
 
+    /// Diagnostic for `--netcheck`: the status code, or the whole error chain rather than the
+    /// summary a person is shown.
+    pub async fn probe(url: &str) -> Result<u16, String> {
+        match api_client().get(url).send().await {
+            Ok(resp) => Ok(resp.status().as_u16()),
+            Err(e) => Err(error_chain(&e)),
+        }
+    }
+
     /// Stream a file to disk, emitting `download-progress` events.
     /// Writes to a `.part` file first so interrupted downloads are never mistaken for complete ones.
     pub async fn download_file(app: &tauri::AppHandle, id: &str, url: &str, dest: &Path) -> Result<(), String> {
@@ -92,7 +135,7 @@ impl ApiClient {
             .get(url)
             .send()
             .await
-            .map_err(|e| format!("Download failed: {}", e))?;
+            .map_err(|e| format!("Download failed: {}", explain(&e)))?;
         if !resp.status().is_success() {
             return Err(format!("Download failed: HTTP {}", resp.status()));
         }
@@ -141,5 +184,35 @@ impl ApiClient {
             },
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tls {
+    /// Proves Lumen reads the certificates this machine trusts, rather than only the copy of
+    /// Mozilla's list baked into the binary. Without that, a network that inspects HTTPS —
+    /// Netskope, Zscaler, any corporate proxy — fails every fetch at the handshake, because the
+    /// certificate it presents is signed by a CA that only the operating system knows about.
+    ///
+    /// The bundled roots are switched off here, so success can only have come from the OS store.
+    #[test]
+    #[ignore]
+    fn the_operating_systems_certificates_are_trusted() {
+        let client = reqwest::Client::builder()
+            .tls_built_in_webpki_certs(false)
+            .build()
+            .expect("client with only the system's certificates");
+        let status = tauri::async_runtime::block_on(async {
+            client
+                .get("https://safebooru.org/index.php?page=dapi&s=post&q=index&json=1&limit=1&tags=animated")
+                .send()
+                .await
+                .map(|r| r.status())
+        });
+        println!("system-certificate-only request: {:?}", status);
+        assert!(
+            status.is_ok(),
+            "the system certificate store did not verify a public site"
+        );
     }
 }
