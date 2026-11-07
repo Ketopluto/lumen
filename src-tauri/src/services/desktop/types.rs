@@ -39,7 +39,10 @@ pub struct Capabilities {
 #[derive(Debug, Clone, Copy)]
 pub struct MonitorTarget {
     pub index: usize,
-    /// Physical bounds: x, y, width, height.
+    /// Physical bounds: x, y, width, height. Windows has to match a monitor by its rectangle,
+    /// because the shell's monitor list has no documented order; every other platform identifies
+    /// one by `index`, so nothing reads this there.
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     pub bounds: (i32, i32, u32, u32),
 }
 
