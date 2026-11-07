@@ -14,6 +14,11 @@ pub fn capabilities() -> Capabilities {
     caps
 }
 
+/// Tauri's list is already physical here.
+pub fn monitor_layout(app: &AppHandle) -> Vec<super::MonitorInfo> {
+    super::tauri_monitor_layout(app)
+}
+
 pub fn plan_surfaces(_app: &AppHandle) -> Vec<SurfaceSpec> {
     Vec::new()
 }

@@ -34,6 +34,19 @@ pub struct Capabilities {
     pub per_monitor_static: bool,
 }
 
+/// One monitor, as the platform itself reports it.
+///
+/// Physical pixels throughout. Tauri's own monitor list is logical on Windows — a 2400x1350
+/// screen at 125% is reported as 1920x1080 — which puts every per-monitor surface at 80% of the
+/// size it needs and hundreds of pixels away from where it belongs.
+#[derive(Debug, Clone)]
+pub struct MonitorInfo {
+    pub name: String,
+    /// Physical bounds: x, y, width, height.
+    pub bounds: (i32, i32, u32, u32),
+    pub primary: bool,
+}
+
 /// Which monitor a wallpaper is meant for, named both ways because the platforms disagree:
 /// Windows identifies a monitor by its rectangle, macOS by its position in the screen list.
 #[derive(Debug, Clone, Copy)]

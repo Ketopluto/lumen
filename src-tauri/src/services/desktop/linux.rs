@@ -96,6 +96,11 @@ pub fn capabilities() -> Capabilities {
     caps
 }
 
+/// Tauri's list is already physical here.
+pub fn monitor_layout(app: &AppHandle) -> Vec<super::MonitorInfo> {
+    super::tauri_monitor_layout(app)
+}
+
 pub fn plan_surfaces(app: &AppHandle) -> Vec<SurfaceSpec> {
     match session() {
         // One window over the whole virtual screen.

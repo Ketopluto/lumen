@@ -1,13 +1,16 @@
 //! Windows: the live wallpaper window becomes a child of the desktop's WorkerW, behind the icons.
 
-use super::{Capabilities, MonitorTarget, SurfaceReport, SurfaceSpec};
+use super::{Capabilities, MonitorInfo, MonitorTarget, SurfaceReport, SurfaceSpec};
 use crate::models::FitMode;
 use std::ffi::c_void;
 use tauri::{AppHandle, WebviewWindow};
 use windows::core::{w, PCWSTR};
 use windows::core::{HSTRING, PWSTR};
 use windows::Win32::Foundation::{BOOL, COLORREF, FALSE, HWND, LPARAM, RECT, TRUE, WPARAM};
-use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+use windows::Win32::Graphics::Gdi::{
+    EnumDisplayMonitors, GetMonitorInfoW, MonitorFromWindow, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW,
+    MONITOR_DEFAULTTONEAREST,
+};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
 };
@@ -28,6 +31,59 @@ pub fn capabilities() -> Capabilities {
 /// One window spanning the virtual screen covers every monitor.
 pub fn plan_surfaces(_app: &AppHandle) -> Vec<SurfaceSpec> {
     SurfaceSpec::spanning()
+}
+
+/// Every monitor in physical pixels, left to right, then top to bottom.
+///
+/// Tauri reports a scaled monitor in logical pixels, so a 2400x1350 screen at 125% comes back as
+/// 1920x1080 at the wrong origin. Win32 is asked directly instead; this is also safe from any
+/// thread, which the watchdog needs.
+pub fn monitor_layout(_app: &AppHandle) -> Vec<MonitorInfo> {
+    let mut monitors: Vec<MonitorInfo> = Vec::new();
+    unsafe {
+        let _ = EnumDisplayMonitors(
+            HDC::default(),
+            None,
+            Some(collect_monitor),
+            LPARAM(&mut monitors as *mut Vec<MonitorInfo> as isize),
+        );
+    }
+    monitors.sort_by_key(|monitor| (monitor.bounds.0, monitor.bounds.1));
+    monitors
+}
+
+unsafe extern "system" fn collect_monitor(monitor: HMONITOR, _dc: HDC, _rect: *mut RECT, out: LPARAM) -> BOOL {
+    let mut info = MONITORINFOEXW {
+        monitorInfo: MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFOEXW>() as u32,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    if !GetMonitorInfoW(monitor, &mut info.monitorInfo as *mut MONITORINFO).as_bool() {
+        return TRUE;
+    }
+    let rect = info.monitorInfo.rcMonitor;
+    let name = String::from_utf16_lossy(&info.szDevice)
+        .trim_end_matches('\0')
+        .trim_start_matches(r"\\.\")
+        .to_string();
+    let monitors = &mut *(out.0 as *mut Vec<MonitorInfo>);
+    monitors.push(MonitorInfo {
+        name: if name.is_empty() {
+            format!("Display {}", monitors.len() + 1)
+        } else {
+            name
+        },
+        bounds: (
+            rect.left,
+            rect.top,
+            (rect.right - rect.left) as u32,
+            (rect.bottom - rect.top) as u32,
+        ),
+        primary: info.monitorInfo.dwFlags & MONITORINFOF_PRIMARY != 0,
+    });
+    TRUE
 }
 
 pub fn attach(window: &WebviewWindow, spec: &SurfaceSpec) -> Result<(), String> {

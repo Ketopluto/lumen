@@ -9,7 +9,7 @@ pub fn get_capabilities() -> Capabilities {
 
 /// A monitor as the UI shows it: numbered, named, and with the size people recognise it by.
 #[derive(serde::Serialize)]
-pub struct MonitorInfo {
+pub struct MonitorRow {
     pub index: usize,
     pub name: String,
     pub width: u32,
@@ -17,24 +17,19 @@ pub struct MonitorInfo {
     pub primary: bool,
 }
 
-/// Every monitor Lumen can see, in the order it numbers them — the same order the wallpaper
-/// engine uses, so an index means the same thing on both sides.
+/// Every monitor Lumen can see, straight from the same list the wallpaper engine indexes into, so
+/// monitor 2 in the picker is monitor 2 on the desktop.
 #[tauri::command]
-pub fn get_monitors(app: tauri::AppHandle) -> Vec<MonitorInfo> {
-    let primary = app.primary_monitor().ok().flatten().map(|monitor| *monitor.position());
-    app.available_monitors()
-        .unwrap_or_default()
+pub fn get_monitors(app: tauri::AppHandle) -> Vec<MonitorRow> {
+    desktop::monitor_layout(&app)
         .into_iter()
         .enumerate()
-        .map(|(index, monitor)| MonitorInfo {
+        .map(|(index, monitor)| MonitorRow {
             index,
-            name: monitor
-                .name()
-                .cloned()
-                .unwrap_or_else(|| format!("Display {}", index + 1)),
-            width: monitor.size().width,
-            height: monitor.size().height,
-            primary: primary.is_some_and(|position| position == *monitor.position()),
+            name: monitor.name,
+            width: monitor.bounds.2,
+            height: monitor.bounds.3,
+            primary: monitor.primary,
         })
         .collect()
 }

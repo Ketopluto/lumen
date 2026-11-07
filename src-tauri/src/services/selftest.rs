@@ -48,6 +48,26 @@ pub fn run(app: &AppHandle) -> i32 {
         return SKIPPED;
     }
 
+    // Which coordinate space does this process actually live in? Tauri's list and the platform's
+    // own list disagree on a scaled monitor, and only one of them can place a window correctly.
+    for (index, monitor) in desktop::monitor_layout(app).into_iter().enumerate() {
+        report_line(&format!(
+            "layout[{}] {:<12} bounds={:?} primary={}",
+            index, monitor.name, monitor.bounds, monitor.primary
+        ));
+    }
+    if let Ok(monitors) = app.available_monitors() {
+        for (index, monitor) in monitors.iter().enumerate() {
+            report_line(&format!(
+                "tauri[{}]  position={:?} size={:?} scale={}",
+                index,
+                (monitor.position().x, monitor.position().y),
+                (monitor.size().width, monitor.size().height),
+                monitor.scale_factor()
+            ));
+        }
+    }
+
     let args: Vec<String> = std::env::args().collect();
     let specs = if per_monitor_requested(&args) {
         let monitors: Vec<usize> = desktop::monitors(app).into_iter().map(|m| m.index).collect();

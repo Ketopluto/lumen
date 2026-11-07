@@ -14,7 +14,7 @@
 
 mod types;
 
-pub use types::{Capabilities, MonitorTarget, SurfaceReport, SurfaceSpec};
+pub use types::{Capabilities, MonitorInfo, MonitorTarget, SurfaceReport, SurfaceSpec};
 
 use crate::models::FitMode;
 use std::sync::OnceLock;
@@ -53,6 +53,7 @@ const _CONTRACT: () = {
     let _: fn() -> Option<String> = imp::current_static_wallpaper;
     let _: fn(&FitMode) = imp::redraw_wallpaper;
     let _: fn(&WebviewWindow) -> SurfaceReport = imp::describe;
+    let _: fn(&AppHandle) -> Vec<MonitorInfo> = imp::monitor_layout;
 };
 
 /// Computed once: reading the session type and monitor layout is not free.
@@ -95,15 +96,20 @@ pub fn set_static_wallpaper(path: &str, fit: &FitMode, target: Option<MonitorTar
     imp::set_static_wallpaper(path, fit, target)
 }
 
+/// Every monitor, in the one order Lumen numbers them — the UI, the surfaces and the stored
+/// layout all index into this.
+pub fn monitor_layout(app: &AppHandle) -> Vec<MonitorInfo> {
+    imp::monitor_layout(app)
+}
+
 /// Every monitor Lumen can see, in the order the UI numbers them.
 pub fn monitors(app: &AppHandle) -> Vec<MonitorTarget> {
-    per_monitor(app)
+    monitor_layout(app)
         .into_iter()
-        .filter_map(|spec| {
-            Some(MonitorTarget {
-                index: spec.monitor?,
-                bounds: spec.bounds?,
-            })
+        .enumerate()
+        .map(|(index, monitor)| MonitorTarget {
+            index,
+            bounds: monitor.bounds,
         })
         .collect()
 }
@@ -167,21 +173,41 @@ pub fn surface_script(src: Option<&str>, fit: &FitMode) -> String {
 /// One surface per display, for platforms where a window cannot span displays (macOS, Wayland).
 /// Uses Tauri's monitor list rather than the native one: it is safe to call from any thread.
 pub(crate) fn per_monitor(app: &AppHandle) -> Vec<SurfaceSpec> {
-    let monitors = app.available_monitors().unwrap_or_default();
+    let monitors = monitor_layout(app);
     if monitors.is_empty() {
+        log::warn!("no monitor could be enumerated; covering the whole desktop with one surface");
         return SurfaceSpec::spanning();
     }
     monitors
-        .iter()
+        .into_iter()
+        .enumerate()
+        .map(|(index, monitor)| SurfaceSpec {
+            index,
+            label: SurfaceSpec::label_for(index),
+            monitor: Some(index),
+            bounds: Some(monitor.bounds),
+        })
+        .collect()
+}
+
+/// Tauri's monitor list, for the platforms whose own list is already in physical pixels.
+#[allow(dead_code)] // Windows enumerates natively instead
+pub(crate) fn tauri_monitor_layout(app: &AppHandle) -> Vec<MonitorInfo> {
+    let primary = app.primary_monitor().ok().flatten().map(|monitor| *monitor.position());
+    app.available_monitors()
+        .unwrap_or_default()
+        .into_iter()
         .enumerate()
         .map(|(index, monitor)| {
             let position = monitor.position();
             let size = monitor.size();
-            SurfaceSpec {
-                index,
-                label: SurfaceSpec::label_for(index),
-                monitor: Some(index),
-                bounds: Some((position.x, position.y, size.width, size.height)),
+            MonitorInfo {
+                name: monitor
+                    .name()
+                    .cloned()
+                    .unwrap_or_else(|| format!("Display {}", index + 1)),
+                bounds: (position.x, position.y, size.width, size.height),
+                primary: primary.is_some_and(|p| p == *position),
             }
         })
         .collect()

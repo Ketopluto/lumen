@@ -30,6 +30,11 @@ pub fn capabilities() -> Capabilities {
 
 /// A window cannot span displays while "Displays have separate Spaces" is on, which is the
 /// default, so every screen gets its own surface.
+/// Tauri's list is already physical here.
+pub fn monitor_layout(app: &AppHandle) -> Vec<super::MonitorInfo> {
+    super::tauri_monitor_layout(app)
+}
+
 pub fn plan_surfaces(app: &AppHandle) -> Vec<SurfaceSpec> {
     super::per_monitor(app)
 }

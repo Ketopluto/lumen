@@ -433,6 +433,11 @@ fn apply_live(app: &AppHandle) -> Result<(), String> {
     }
     let planned = plan_live(app, &assignment);
     if planned.is_empty() {
+        // Nothing could be planned, usually because the monitors could not be enumerated for a
+        // moment. Whatever is on screen is not what the assignment asks for, so it must not be
+        // left playing: a wallpaper spanning both monitors outliving a per-monitor choice is
+        // exactly how a stale surface looks like a zoomed one.
+        destroy_surfaces(app);
         return Err("No display to put a wallpaper on".into());
     }
 
