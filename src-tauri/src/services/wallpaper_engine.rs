@@ -425,6 +425,12 @@ fn apply_live(app: &AppHandle) -> Result<(), String> {
         broadcast_live(app);
         return Ok(());
     }
+    // Every file any monitor plays has to be readable through the asset protocol. Doing it here
+    // rather than only where a wallpaper is chosen covers the paths that do not go through a
+    // choice at all: restoring the saved layout at startup, and the watchdog rebuilding surfaces.
+    for file in assignment.files() {
+        let _ = app.asset_protocol_scope().allow_file(&file);
+    }
     let planned = plan_live(app, &assignment);
     if planned.is_empty() {
         return Err("No display to put a wallpaper on".into());
