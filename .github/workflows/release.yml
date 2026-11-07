@@ -61,11 +61,11 @@ jobs:
           # Two separate Macs rather than a universal binary: half the download, and the two
           # architectures are built and signed independently.
           - name: macOS (Apple Silicon)
-            os: macos-14
+            os: macos-latest
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin
           - name: macOS (Intel)
-            os: macos-14
+            os: macos-latest
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin
           - name: Linux (x64)
