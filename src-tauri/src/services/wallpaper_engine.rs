@@ -325,6 +325,16 @@ pub fn set_live(app: &AppHandle, path: &str, monitor: Option<usize>) -> Result<(
     apply_live(app)
 }
 
+/// Re-applies the live wallpaper after the fit mode changed. Does nothing when none is playing.
+pub fn refresh_fit(app: &AppHandle) {
+    if app.state::<LiveState>().assignment().is_empty() {
+        return;
+    }
+    if let Err(e) = apply_live(app) {
+        log::warn!("could not re-apply the live wallpaper after a fit change: {}", e);
+    }
+}
+
 /// Stops the wallpaper on one monitor and leaves the others playing.
 pub fn clear_monitor(app: &AppHandle, monitor: usize) -> Result<(), String> {
     let state = app.state::<LiveState>();
@@ -341,6 +351,10 @@ pub fn clear_monitor(app: &AppHandle, monitor: usize) -> Result<(), String> {
     // The monitor that went quiet has to show its still wallpaper again.
     redraw(app);
     result
+}
+
+fn fit_mode(app: &AppHandle) -> FitMode {
+    app.state::<Arc<Database>>().settings().fit_mode
 }
 
 fn monitor_indices(app: &AppHandle) -> Vec<usize> {
@@ -374,10 +388,23 @@ fn save_assignment(app: &AppHandle) {
 /// wallpapers pays for a webview per monitor.
 fn plan_live(app: &AppHandle, assignment: &Assignment) -> Vec<(desktop::SurfaceSpec, String)> {
     if let Some(path) = &assignment.all {
-        return desktop::plan_surfaces(app)
-            .into_iter()
-            .map(|spec| (spec, path.clone()))
-            .collect();
+        // One surface over the whole desktop means one video stretched across every screen, which
+        // is only right when the fit mode actually asks to span: on two monitors a 16:9 video
+        // covering 32:9 shows its middle third at double size. Any other fit gives each monitor
+        // its own surface, so the video fits that screen — at the cost of decoding per monitor.
+        let specs = if fit_mode(app) == FitMode::Span {
+            desktop::plan_surfaces(app)
+        } else {
+            let monitors: Vec<usize> = desktop::monitors(app).into_iter().map(|m| m.index).collect();
+            let per_monitor = desktop::surfaces_for(app, &monitors);
+            // A desktop that cannot enumerate its monitors still gets its wallpaper.
+            if per_monitor.is_empty() {
+                desktop::plan_surfaces(app)
+            } else {
+                per_monitor
+            }
+        };
+        return specs.into_iter().map(|spec| (spec, path.clone())).collect();
     }
     let monitors: Vec<usize> = assignment.per_monitor.keys().copied().collect();
     desktop::surfaces_for(app, &monitors)
@@ -420,9 +447,11 @@ fn apply_live(app: &AppHandle) -> Result<(), String> {
             }
         }
     }
+    let fit = fit_mode(app);
     for (spec, path) in &planned {
         app.emit_to(spec.label.as_str(), "live-src", path.as_str())
             .map_err(|e| e.to_string())?;
+        let _ = app.emit_to(spec.label.as_str(), "live-fit", &fit);
     }
     broadcast_live(app);
     Ok(())
@@ -439,7 +468,7 @@ fn build_surface(app: &AppHandle, spec: &desktop::SurfaceSpec, path: &str) -> Re
         .visible(false)
         // Told which file to play before its first paint, so a surface never flashes up the
         // wallpaper belonging to another monitor.
-        .initialization_script(desktop::surface_script(Some(path)));
+        .initialization_script(desktop::surface_script(Some(path), &fit_mode(app)));
     if let Some((x, y, width, height)) = spec.bounds {
         builder = builder
             .position(x as f64, y as f64)

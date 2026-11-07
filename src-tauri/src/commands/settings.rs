@@ -1,6 +1,5 @@
 use crate::models::*;
 use crate::services::database::Database;
-use crate::services::wallpaper_engine::LIVE_LABEL;
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
 
@@ -33,6 +32,13 @@ pub fn update_settings(
     }
 
     db.save_settings(&settings)?;
-    let _ = app.emit_to(LIVE_LABEL, "live-volume", settings.live_wallpaper_volume);
+    // Broadcast rather than emit_to(LIVE_LABEL): there is one surface per monitor now, and only
+    // the first of them carries that label.
+    let _ = app.emit("live-volume", settings.live_wallpaper_volume);
+    if previous.fit_mode != settings.fit_mode {
+        // Switching to or from `span` changes how many surfaces there are, so re-plan rather than
+        // just telling the existing ones to scale differently.
+        crate::services::wallpaper_engine::refresh_fit(&app);
+    }
     Ok(settings)
 }

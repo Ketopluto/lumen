@@ -1,18 +1,30 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { emit, listen } from '@tauri-apps/api/event';
-import { api, fileSrc } from '../../api';
+import { api, fileSrc, type FitMode } from '../../api';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'];
 
-const fill: CSSProperties = {
+/** How each fit mode scales the media inside its own surface. */
+const OBJECT_FIT: Record<FitMode, CSSProperties['objectFit']> = {
+  fill: 'cover',
+  fit: 'contain',
+  stretch: 'fill',
+  center: 'none',
+  // A video cannot be tiled sensibly, so it is left at its own size, centred.
+  tile: 'none',
+  // The surface already covers every monitor, so covering it is the span.
+  span: 'cover',
+};
+
+const surface = (fit: FitMode): CSSProperties => ({
   position: 'fixed',
   inset: 0,
   width: '100vw',
   height: '100vh',
-  objectFit: 'cover',
+  objectFit: OBJECT_FIT[fit] ?? 'cover',
   background: '#000',
   display: 'block',
-};
+});
 
 /** Rendered inside the window that sits behind the desktop icons. */
 export default function LiveWallpaper() {
@@ -21,6 +33,8 @@ export default function LiveWallpaper() {
   const [path, setPath] = useState<string | null>(window.__LUMEN__?.live_src ?? null);
   const [paused, setPaused] = useState(false);
   const [volume, setVolume] = useState(0);
+  // Injected before the first paint, so the very first frame is scaled correctly.
+  const [fit, setFit] = useState<FitMode>(window.__LUMEN__?.live_fit ?? 'fill');
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -40,6 +54,7 @@ export default function LiveWallpaper() {
       listen<string>('live-src', (e) => setPath(e.payload)),
       listen<boolean>('live-pause', (e) => setPaused(e.payload)),
       listen<number>('live-volume', (e) => setVolume(e.payload)),
+      listen<FitMode>('live-fit', (e) => setFit(e.payload)),
     ];
     return () => unlisteners.forEach((u) => u.then((f) => f()));
   }, []);
@@ -93,18 +108,19 @@ export default function LiveWallpaper() {
     emit('live-error', `That video won't play — ${reason}.`).catch(() => {});
   };
 
-  if (!path) return <div style={fill} />;
+  const style = surface(fit);
+  if (!path) return <div style={style} />;
 
   const src = fileSrc(path);
   const ext = path.split('.').pop()?.toLowerCase() ?? '';
   return IMAGE_EXTENSIONS.includes(ext) ? (
-    <img key={src} src={src} style={fill} alt="" />
+    <img key={src} src={src} style={style} alt="" />
   ) : (
     <video
       ref={videoRef}
       key={src}
       src={src}
-      style={fill}
+      style={style}
       autoPlay
       loop
       muted

@@ -148,16 +148,20 @@ pub fn on_main_async(app: &AppHandle, f: impl FnOnce() + Send + 'static) {
 /// Injected into every window before its first paint, so the UI can adapt to the platform without
 /// waiting for a round trip to the backend.
 pub fn bootstrap_script() -> String {
-    surface_script(None)
+    surface_script(None, &FitMode::Fill)
 }
 
 /// The same, plus the file this particular surface must play. Each monitor can be showing a
 /// different wallpaper, so a surface cannot ask "what is the live wallpaper?" and get a useful
 /// answer — it is told, before its first paint, which avoids a wrong video flashing up first.
-pub fn surface_script(src: Option<&str>) -> String {
+pub fn surface_script(src: Option<&str>, fit: &FitMode) -> String {
     let caps = serde_json::to_string(capabilities()).unwrap_or_else(|_| "null".to_string());
     let src = serde_json::to_string(&src).unwrap_or_else(|_| "null".to_string());
-    format!("window.__LUMEN__ = {{ capabilities: {}, live_src: {} }};", caps, src)
+    let fit = serde_json::to_string(fit).unwrap_or_else(|_| "\"fill\"".to_string());
+    format!(
+        "window.__LUMEN__ = {{ capabilities: {}, live_src: {}, live_fit: {} }};",
+        caps, src, fit
+    )
 }
 
 /// One surface per display, for platforms where a window cannot span displays (macOS, Wayland).

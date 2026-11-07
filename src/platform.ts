@@ -49,6 +49,8 @@ declare global {
       capabilities: Capabilities;
       /** Set only on a live wallpaper surface: the file this monitor plays. */
       live_src?: string | null;
+      /** How that surface scales its media. */
+      live_fit?: FitMode;
     };
   }
 }
