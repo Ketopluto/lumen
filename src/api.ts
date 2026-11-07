@@ -110,8 +110,18 @@ export interface SlideshowConfig {
   fit_mode: FitMode;
 }
 
+export interface Monitor {
+  index: number;
+  name: string;
+  width: number;
+  height: number;
+  primary: boolean;
+}
+
 export interface LiveStatus {
   path: string | null;
+  /** Monitor index to file, when the monitors are showing different wallpapers. */
+  per_monitor: Record<number, string>;
   /** Effective state: paused by the user or automatically (fullscreen app / battery). */
   paused: boolean;
   manual_paused: boolean;
@@ -121,7 +131,10 @@ export interface LiveStatus {
 export const api = {
   search: (params: SearchParams) => invoke<SearchResult>('search', { params }),
 
-  setWallpaper: (wallpaper: Wallpaper, fitMode?: FitMode) => invoke<string>('set_wallpaper', { wallpaper, fitMode }),
+  setWallpaper: (wallpaper: Wallpaper, fitMode?: FitMode, monitor?: number | null) =>
+    invoke<string>('set_wallpaper', { wallpaper, fitMode, monitor: monitor ?? null }),
+  getMonitors: () => invoke<Monitor[]>('get_monitors'),
+  clearMonitor: (monitor: number) => invoke<void>('clear_monitor_wallpaper', { monitor }),
   downloadWallpaper: (wallpaper: Wallpaper) => invoke<string>('download_wallpaper', { wallpaper }),
   stopLive: () => invoke<void>('stop_live_wallpaper'),
   setLivePaused: (paused: boolean) => invoke<void>('set_live_paused', { paused }),

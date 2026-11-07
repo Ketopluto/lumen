@@ -9,12 +9,19 @@
 use crate::services::desktop;
 use std::io::Write;
 use std::time::Duration;
-use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 pub const SKIPPED: i32 = 2;
 
 pub fn requested(args: &[String]) -> bool {
-    args.iter().any(|arg| arg == "--selftest")
+    args.iter()
+        .any(|arg| arg == "--selftest" || arg == "--selftest-monitors")
+}
+
+/// `--selftest-monitors` puts a surface on every monitor instead of one on the primary, which is
+/// what per-monitor wallpapers depend on.
+fn per_monitor_requested(args: &[String]) -> bool {
+    args.iter().any(|arg| arg == "--selftest-monitors")
 }
 
 /// Runs off the main thread: `desktop::on_main` needs the event loop free to answer.
@@ -41,7 +48,17 @@ pub fn run(app: &AppHandle) -> i32 {
         return SKIPPED;
     }
 
-    let specs = desktop::plan_surfaces(app);
+    let args: Vec<String> = std::env::args().collect();
+    let specs = if per_monitor_requested(&args) {
+        let monitors: Vec<usize> = desktop::monitors(app).into_iter().map(|m| m.index).collect();
+        report_line(&format!("monitors: {:?}", monitors));
+        desktop::surfaces_for(app, &monitors)
+    } else {
+        desktop::plan_surfaces(app)
+    };
+    if specs.len() > 1 {
+        return per_monitor_report(app, specs);
+    }
     let Some(spec) = specs.first().cloned() else {
         report_line("skipped: this system reports no display");
         return SKIPPED;
@@ -107,6 +124,87 @@ pub fn run(app: &AppHandle) -> i32 {
         0
     } else {
         report_line("failed: the surface is not where a wallpaper belongs");
+        1
+    }
+}
+
+/// Builds every planned surface, attaches each, and reports where they landed. A wallpaper per
+/// monitor is only real if each surface covers its own monitor and nothing else.
+fn per_monitor_report(app: &AppHandle, specs: Vec<desktop::SurfaceSpec>) -> i32 {
+    let mut failures = 0;
+    for spec in &specs {
+        let mut builder = WebviewWindowBuilder::new(app, &spec.label, WebviewUrl::App("index.html".into()))
+            .title("Lumen Live")
+            .decorations(false)
+            .skip_taskbar(true)
+            .resizable(false)
+            .shadow(false)
+            .focused(false)
+            .visible(false)
+            .initialization_script(desktop::bootstrap_script());
+        if let Some((x, y, width, height)) = spec.bounds {
+            builder = builder
+                .position(x as f64, y as f64)
+                .inner_size(width as f64, height as f64);
+        }
+        let window = match builder.build() {
+            Ok(window) => window,
+            Err(e) => {
+                report_line(&format!("{}: no window ({})", spec.label, e));
+                failures += 1;
+                continue;
+            }
+        };
+        let spec_for_attach = spec.clone();
+        match desktop::on_main(app, move || desktop::attach(&window, &spec_for_attach)) {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) | Err(e) => {
+                report_line(&format!("{}: attach failed ({})", spec.label, e));
+                failures += 1;
+                continue;
+            }
+        }
+    }
+    std::thread::sleep(Duration::from_millis(1500));
+
+    for spec in &specs {
+        let Some(window) = app.get_webview_window(&spec.label) else {
+            continue;
+        };
+        let bounds = spec.bounds;
+        let placement = window
+            .outer_position()
+            .ok()
+            .zip(window.outer_size().ok())
+            .map(|(position, size)| (position.x, position.y, size.width, size.height));
+        let report = match desktop::on_main(app, move || desktop::describe(&window)) {
+            Ok(report) => report,
+            Err(e) => {
+                report_line(&format!("{}: {}", spec.label, e));
+                failures += 1;
+                continue;
+            }
+        };
+        let fitted = match (bounds, placement) {
+            (Some((_, _, width, height)), Some((_, _, actual_width, actual_height))) => {
+                actual_width == width && actual_height == height
+            }
+            _ => false,
+        };
+        report_line(&format!(
+            "{}: monitor {:?} wanted {:?} got {:?} placed={} visible={} sized={}",
+            spec.label, spec.monitor, bounds, placement, report.placed, report.visible, fitted
+        ));
+        if !report.placed || !report.visible || !fitted {
+            failures += 1;
+        }
+    }
+
+    if failures == 0 {
+        report_line(&format!("passed: {} surfaces, one per monitor", specs.len()));
+        0
+    } else {
+        report_line(&format!("failed: {} of {} surfaces are wrong", failures, specs.len()));
         1
     }
 }

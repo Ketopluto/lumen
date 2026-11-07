@@ -73,7 +73,7 @@ impl SlideshowScheduler {
                     items.shuffle(&mut rand::thread_rng());
                 }
                 for item in &items {
-                    if let Err(e) = wallpaper_engine::apply(&app, &db, item, &fit).await {
+                    if let Err(e) = wallpaper_engine::apply(&app, &db, item, &fit, None).await {
                         log::warn!("Slideshow: skipping {}: {}", item.url, e);
                         continue;
                     }

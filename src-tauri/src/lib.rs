@@ -67,7 +67,7 @@ fn apply_file(app: &AppHandle, path: std::path::PathBuf) {
         let db = app.state::<Arc<Database>>().inner().clone();
         let fit = db.settings().fit_mode;
         let info = models::WallpaperInfo::from_local(&path);
-        if let Err(e) = wallpaper_engine::apply(&app, &db, &info, &fit).await {
+        if let Err(e) = wallpaper_engine::apply(&app, &db, &info, &fit, None).await {
             log::warn!("Could not set {} as wallpaper: {}", path, e);
         }
     });
@@ -142,6 +142,8 @@ pub fn run() {
             commands::wallpaper::get_current_wallpaper,
             commands::sources::search,
             commands::platform::get_capabilities,
+            commands::platform::get_monitors,
+            commands::wallpaper::clear_monitor_wallpaper,
             commands::media::set_media_support,
             commands::favorites::add_favorite,
             commands::favorites::remove_favorite,

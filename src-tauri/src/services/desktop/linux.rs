@@ -251,8 +251,16 @@ fn on_battery_in(dir: &Path) -> bool {
 
 // ── Static wallpaper ───────────────────────────────────────────────────────
 
-pub fn set_static_wallpaper(path: &str, fit: &FitMode) -> Result<(), String> {
+/// `_target` is ignored: no Linux desktop exposes a per-monitor still image.
+pub fn set_static_wallpaper(path: &str, fit: &FitMode, _target: Option<super::MonitorTarget>) -> Result<(), String> {
     still::set(&desktop_environment(), path, fit)
+}
+
+/// One desktop image here, so re-applying it is both the repaint and the whole story.
+pub fn redraw_wallpaper(fit: &FitMode) {
+    if let Some(current) = current_static_wallpaper() {
+        let _ = set_static_wallpaper(&current, fit, None);
+    }
 }
 
 pub fn current_static_wallpaper() -> Option<String> {

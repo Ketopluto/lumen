@@ -16,7 +16,9 @@ const fill: CSSProperties = {
 
 /** Rendered inside the window that sits behind the desktop icons. */
 export default function LiveWallpaper() {
-  const [path, setPath] = useState<string | null>(null);
+  // The backend injects this before the first paint. Each monitor can be playing something
+  // different, so asking "what is the live wallpaper?" would be the wrong question here.
+  const [path, setPath] = useState<string | null>(window.__LUMEN__?.live_src ?? null);
   const [paused, setPaused] = useState(false);
   const [volume, setVolume] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -27,7 +29,8 @@ export default function LiveWallpaper() {
     api
       .liveStatus()
       .then((s) => {
-        setPath(s.path);
+        // Only the shared state: the file comes from the injection above, per monitor.
+        setPath((current) => current ?? s.path);
         setPaused(s.paused);
         setVolume(s.volume);
       })

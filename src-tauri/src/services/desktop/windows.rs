@@ -1,17 +1,28 @@
 //! Windows: the live wallpaper window becomes a child of the desktop's WorkerW, behind the icons.
 
-use super::{Capabilities, SurfaceReport, SurfaceSpec};
+use super::{Capabilities, MonitorTarget, SurfaceReport, SurfaceSpec};
 use crate::models::FitMode;
 use std::ffi::c_void;
 use tauri::{AppHandle, WebviewWindow};
 use windows::core::{w, PCWSTR};
+use windows::core::{HSTRING, PWSTR};
 use windows::Win32::Foundation::{BOOL, COLORREF, FALSE, HWND, LPARAM, RECT, TRUE, WPARAM};
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
+use windows::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
+};
 use windows::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
+use windows::Win32::UI::Shell::{
+    DesktopWallpaper, IDesktopWallpaper, DESKTOP_WALLPAPER_POSITION, DWPOS_CENTER, DWPOS_FILL, DWPOS_FIT, DWPOS_SPAN,
+    DWPOS_STRETCH, DWPOS_TILE,
+};
 use windows::Win32::UI::WindowsAndMessaging::*;
 
 pub fn capabilities() -> Capabilities {
-    Capabilities::full("windows")
+    let mut caps = Capabilities::full("windows");
+    // IDesktopWallpaper sets a still image per monitor, and a live surface can be sized to one.
+    caps.per_monitor_static = true;
+    caps
 }
 
 /// One window spanning the virtual screen covers every monitor.
@@ -19,14 +30,14 @@ pub fn plan_surfaces(_app: &AppHandle) -> Vec<SurfaceSpec> {
     SurfaceSpec::spanning()
 }
 
-pub fn attach(window: &WebviewWindow, _spec: &SurfaceSpec) -> Result<(), String> {
+pub fn attach(window: &WebviewWindow, spec: &SurfaceSpec) -> Result<(), String> {
     let hwnd = window.hwnd().map_err(|e| e.to_string())?;
-    unsafe { attach_hwnd(hwnd.0 as isize) }
+    unsafe { attach_hwnd(hwnd.0 as isize, spec.bounds) }
 }
 
-pub fn refit(window: &WebviewWindow, _spec: &SurfaceSpec) {
+pub fn refit(window: &WebviewWindow, spec: &SurfaceSpec) {
     if let Ok(hwnd) = window.hwnd() {
-        unsafe { keep_fitted(hwnd.0 as isize) };
+        unsafe { keep_fitted(hwnd.0 as isize, spec.bounds) };
     }
 }
 
@@ -36,7 +47,27 @@ pub fn refit(window: &WebviewWindow, _spec: &SurfaceSpec) {
 /// inside Progman, so the window becomes a child of that WorkerW. (A layered sibling of the icons
 /// is only a fallback: WebView2 renders black inside layered windows.) Older Windows moves the
 /// icons into a new WorkerW, and the wallpaper goes into the WorkerW behind it.
-unsafe fn attach_hwnd(raw: isize) -> Result<(), String> {
+/// Where a surface sits inside the WorkerW. Its client area starts at the top-left of the virtual
+/// screen, which is not the origin once a monitor sits left of or above the primary one, so a
+/// monitor rectangle has to be shifted into that space.
+unsafe fn target_rect(bounds: Option<(i32, i32, u32, u32)>) -> (i32, i32, i32, i32) {
+    match bounds {
+        Some((x, y, width, height)) => (
+            x - GetSystemMetrics(SM_XVIRTUALSCREEN),
+            y - GetSystemMetrics(SM_YVIRTUALSCREEN),
+            width as i32,
+            height as i32,
+        ),
+        None => (
+            0,
+            0,
+            GetSystemMetrics(SM_CXVIRTUALSCREEN),
+            GetSystemMetrics(SM_CYVIRTUALSCREEN),
+        ),
+    }
+}
+
+unsafe fn attach_hwnd(raw: isize, bounds: Option<(i32, i32, u32, u32)>) -> Result<(), String> {
     let hwnd = HWND(raw as *mut c_void);
     let progman = FindWindowW(w!("Progman"), PCWSTR::null())
         .map_err(|_| "Could not find the desktop window (is Explorer running?)".to_string())?;
@@ -53,8 +84,7 @@ unsafe fn attach_hwnd(raw: isize) -> Result<(), String> {
         Some(&mut result),
     );
 
-    let cx = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-    let cy = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    let (x, y, cx, cy) = target_rect(bounds);
 
     let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
     let remove = (WS_POPUP | WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX).0 as isize;
@@ -66,14 +96,14 @@ unsafe fn attach_hwnd(raw: isize) -> Result<(), String> {
         // Windows 11 24H2+: become a child of the WorkerW that paints the wallpaper. It sits
         // below the icons, and needs no WS_EX_LAYERED (WebView2 renders black in layered windows).
         SetParent(hwnd, *worker).map_err(|e| format!("SetParent failed: {}", e))?;
-        let _ = SetWindowPos(hwnd, HWND::default(), 0, 0, cx, cy, SWP_NOACTIVATE);
+        let _ = SetWindowPos(hwnd, HWND::default(), x, y, cx, cy, SWP_NOACTIVATE);
     } else if let Ok(icons) = raised_desktop {
         let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED.0 as isize);
         let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), 255, LWA_ALPHA);
         SetParent(hwnd, progman).map_err(|e| format!("SetParent failed: {}", e))?;
         // Directly below the icon view...
-        let _ = SetWindowPos(hwnd, icons, 0, 0, cx, cy, SWP_NOACTIVATE);
+        let _ = SetWindowPos(hwnd, icons, x, y, cx, cy, SWP_NOACTIVATE);
         // ...and above the WorkerW that paints the static wallpaper.
         if let Ok(worker) = FindWindowExW(progman, HWND::default(), w!("WorkerW"), PCWSTR::null()) {
             let _ = SetWindowPos(worker, hwnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
@@ -85,7 +115,7 @@ unsafe fn attach_hwnd(raw: isize) -> Result<(), String> {
             return Err("Could not find the desktop WorkerW window".into());
         }
         SetParent(hwnd, worker).map_err(|e| format!("SetParent failed: {}", e))?;
-        let _ = SetWindowPos(hwnd, HWND::default(), 0, 0, cx, cy, SWP_NOACTIVATE);
+        let _ = SetWindowPos(hwnd, HWND::default(), x, y, cx, cy, SWP_NOACTIVATE);
     }
     // Reveal it here rather than through Tauri's show(): see the contract in mod.rs.
     let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
@@ -94,18 +124,17 @@ unsafe fn attach_hwnd(raw: isize) -> Result<(), String> {
 
 /// Re-attaches the player if it lost its desktop parent, and keeps it covering every monitor
 /// (the virtual screen changes with resolution or monitor changes).
-unsafe fn keep_fitted(raw: isize) {
+unsafe fn keep_fitted(raw: isize, bounds: Option<(i32, i32, u32, u32)>) {
     let hwnd = HWND(raw as *mut c_void);
     let attached = matches!(GetParent(hwnd), Ok(p) if !p.0.is_null() && IsWindow(p).as_bool());
     if !attached {
-        let _ = attach_hwnd(raw);
+        let _ = attach_hwnd(raw, bounds);
         return;
     }
-    let cx = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-    let cy = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    let (x, y, cx, cy) = target_rect(bounds);
     let mut rect = RECT::default();
     if GetClientRect(hwnd, &mut rect).is_ok() && (rect.right != cx || rect.bottom != cy) {
-        let _ = SetWindowPos(hwnd, HWND::default(), 0, 0, cx, cy, SWP_NOACTIVATE | SWP_NOZORDER);
+        let _ = SetWindowPos(hwnd, HWND::default(), x, y, cx, cy, SWP_NOACTIVATE | SWP_NOZORDER);
     }
 }
 
@@ -157,9 +186,82 @@ pub fn on_battery() -> bool {
     unsafe { GetSystemPowerStatus(&mut status).is_ok() && status.ACLineStatus == 0 }
 }
 
-pub fn set_static_wallpaper(path: &str, fit: &FitMode) -> Result<(), String> {
+pub fn set_static_wallpaper(path: &str, fit: &FitMode, target: Option<MonitorTarget>) -> Result<(), String> {
+    if let Some(target) = target {
+        return unsafe { set_monitor_wallpaper(path, fit, target) };
+    }
     let _ = ::wallpaper::set_mode(fit.to_mode());
     ::wallpaper::set_from_path(path).map_err(|e| format!("Failed to set wallpaper: {}", e))
+}
+
+fn wallpaper_position(fit: &FitMode) -> DESKTOP_WALLPAPER_POSITION {
+    match fit {
+        FitMode::Fill => DWPOS_FILL,
+        FitMode::Fit => DWPOS_FIT,
+        FitMode::Stretch => DWPOS_STRETCH,
+        FitMode::Center => DWPOS_CENTER,
+        FitMode::Tile => DWPOS_TILE,
+        FitMode::Span => DWPOS_SPAN,
+    }
+}
+
+/// One monitor's still image, through the shell's own wallpaper interface.
+///
+/// Monitors are identified by device path, and that list is in no particular order, so the right
+/// one is found by matching its rectangle against the monitor the caller asked for — falling back
+/// to list position only when nothing matches.
+unsafe fn set_monitor_wallpaper(path: &str, fit: &FitMode, target: MonitorTarget) -> Result<(), String> {
+    // Already initialised on most threads; a second call on the same apartment is harmless.
+    let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+    let desktop: IDesktopWallpaper =
+        CoCreateInstance(&DesktopWallpaper, None, CLSCTX_ALL).map_err(|e| format!("Desktop wallpaper: {}", e))?;
+
+    let count = desktop.GetMonitorDevicePathCount().map_err(|e| e.to_string())?;
+    let (wanted_x, wanted_y, wanted_width, wanted_height) = target.bounds;
+    let mut chosen: Option<PWSTR> = None;
+    let mut fallback: Option<PWSTR> = None;
+    for index in 0..count {
+        let Ok(id) = desktop.GetMonitorDevicePathAt(index) else {
+            continue;
+        };
+        let matches_bounds = desktop.GetMonitorRECT(PCWSTR(id.0)).is_ok_and(|rect| {
+            rect.left == wanted_x
+                && rect.top == wanted_y
+                && rect.right - rect.left == wanted_width as i32
+                && rect.bottom - rect.top == wanted_height as i32
+        });
+        if matches_bounds {
+            chosen = Some(id);
+            break;
+        }
+        if index as usize == target.index {
+            fallback = Some(id);
+        } else {
+            CoTaskMemFree(Some(id.0 as *const c_void));
+        }
+    }
+    let id = chosen.or(fallback).ok_or("That monitor is no longer connected")?;
+    let result = desktop
+        .SetWallpaper(PCWSTR(id.0), &HSTRING::from(path))
+        .map_err(|e| format!("Failed to set wallpaper on that monitor: {}", e));
+    CoTaskMemFree(Some(id.0 as *const c_void));
+    result?;
+    // The fit applies to the whole desktop: Windows keeps one position for every monitor.
+    let _ = desktop.SetPosition(wallpaper_position(fit));
+    Ok(())
+}
+
+/// Asks the shell to repaint by writing back the position it already has: every monitor redraws
+/// and no image is replaced, which matters once the monitors hold different wallpapers.
+pub fn redraw_wallpaper(_fit: &FitMode) {
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        if let Ok(desktop) = CoCreateInstance::<_, IDesktopWallpaper>(&DesktopWallpaper, None, CLSCTX_ALL) {
+            if let Ok(position) = desktop.GetPosition() {
+                let _ = desktop.SetPosition(position);
+            }
+        }
+    }
 }
 
 pub fn current_static_wallpaper() -> Option<String> {
@@ -190,4 +292,46 @@ pub fn describe(window: &WebviewWindow) -> SurfaceReport {
             );
     }
     report
+}
+
+#[cfg(test)]
+mod monitor_tests {
+    use super::*;
+
+    /// Per-monitor still images hinge on matching the shell's monitor list — which is in no
+    /// documented order — against a rectangle. This reads that list without changing anything, so
+    /// the mapping can be checked on a real multi-monitor desktop:
+    /// `cargo test monitor_tests -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn the_shell_identifies_every_monitor_by_rectangle() {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+            let desktop: IDesktopWallpaper =
+                CoCreateInstance(&DesktopWallpaper, None, CLSCTX_ALL).expect("IDesktopWallpaper");
+            let count = desktop.GetMonitorDevicePathCount().expect("monitor count");
+            println!("the shell reports {} monitor(s)", count);
+            let mut rectangles = 0;
+            for index in 0..count {
+                let id = desktop.GetMonitorDevicePathAt(index).expect("device path");
+                match desktop.GetMonitorRECT(PCWSTR(id.0)) {
+                    Ok(rect) => {
+                        rectangles += 1;
+                        println!(
+                            "  {}: {}x{} at ({}, {})",
+                            index,
+                            rect.right - rect.left,
+                            rect.bottom - rect.top,
+                            rect.left,
+                            rect.top
+                        );
+                    }
+                    // A device path can outlive the monitor it names; those are simply skipped.
+                    Err(e) => println!("  {}: no rectangle ({})", index, e),
+                }
+                CoTaskMemFree(Some(id.0 as *const c_void));
+            }
+            assert!(rectangles > 0, "no monitor could be identified by rectangle");
+        }
+    }
 }

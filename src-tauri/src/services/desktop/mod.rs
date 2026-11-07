@@ -14,7 +14,7 @@
 
 mod types;
 
-pub use types::{Capabilities, SurfaceReport, SurfaceSpec};
+pub use types::{Capabilities, MonitorTarget, SurfaceReport, SurfaceSpec};
 
 use crate::models::FitMode;
 use std::sync::OnceLock;
@@ -49,8 +49,9 @@ const _CONTRACT: () = {
     let _: fn(&WebviewWindow, &SurfaceSpec) = imp::refit;
     let _: fn() -> bool = imp::fullscreen_app_active;
     let _: fn() -> bool = imp::on_battery;
-    let _: fn(&str, &FitMode) -> Result<(), String> = imp::set_static_wallpaper;
+    let _: fn(&str, &FitMode, Option<MonitorTarget>) -> Result<(), String> = imp::set_static_wallpaper;
     let _: fn() -> Option<String> = imp::current_static_wallpaper;
+    let _: fn(&FitMode) = imp::redraw_wallpaper;
     let _: fn(&WebviewWindow) -> SurfaceReport = imp::describe;
 };
 
@@ -88,13 +89,43 @@ pub fn on_battery() -> bool {
     imp::on_battery()
 }
 
-pub fn set_static_wallpaper(path: &str, fit: &FitMode) -> Result<(), String> {
-    imp::set_static_wallpaper(path, fit)
+/// `target` of `None` means the whole desktop. A backend without per-monitor support ignores it,
+/// which is why `Capabilities::per_monitor_static` exists for the UI to check first.
+pub fn set_static_wallpaper(path: &str, fit: &FitMode, target: Option<MonitorTarget>) -> Result<(), String> {
+    imp::set_static_wallpaper(path, fit, target)
 }
 
-/// The wallpaper the desktop is showing, where asking is cheap and prompt-free.
-pub fn current_static_wallpaper() -> Option<String> {
-    imp::current_static_wallpaper()
+/// Every monitor Lumen can see, in the order the UI numbers them.
+pub fn monitors(app: &AppHandle) -> Vec<MonitorTarget> {
+    per_monitor(app)
+        .into_iter()
+        .filter_map(|spec| {
+            Some(MonitorTarget {
+                index: spec.monitor?,
+                bounds: spec.bounds?,
+            })
+        })
+        .collect()
+}
+
+/// One surface per named monitor, for when the monitors are showing different wallpapers. Labels
+/// follow the monitor index so they stay stable while only one monitor's choice changes.
+pub fn surfaces_for(app: &AppHandle, monitors: &[usize]) -> Vec<SurfaceSpec> {
+    per_monitor(app)
+        .into_iter()
+        .filter(|spec| spec.monitor.is_some_and(|m| monitors.contains(&m)))
+        .map(|mut spec| {
+            spec.index = spec.monitor.unwrap_or(spec.index);
+            spec.label = SurfaceSpec::label_for(spec.index);
+            spec
+        })
+        .collect()
+}
+
+/// Makes the desktop paint its wallpaper again after a live surface disappears, without changing
+/// which image is set — re-applying one image would flatten per-monitor choices into it.
+pub fn redraw_wallpaper(fit: &FitMode) {
+    imp::redraw_wallpaper(fit)
 }
 
 /// Runs `f` on the UI thread and waits for the result.
@@ -117,13 +148,20 @@ pub fn on_main_async(app: &AppHandle, f: impl FnOnce() + Send + 'static) {
 /// Injected into every window before its first paint, so the UI can adapt to the platform without
 /// waiting for a round trip to the backend.
 pub fn bootstrap_script() -> String {
+    surface_script(None)
+}
+
+/// The same, plus the file this particular surface must play. Each monitor can be showing a
+/// different wallpaper, so a surface cannot ask "what is the live wallpaper?" and get a useful
+/// answer — it is told, before its first paint, which avoids a wrong video flashing up first.
+pub fn surface_script(src: Option<&str>) -> String {
     let caps = serde_json::to_string(capabilities()).unwrap_or_else(|_| "null".to_string());
-    format!("window.__LUMEN__ = {{ capabilities: {} }};", caps)
+    let src = serde_json::to_string(&src).unwrap_or_else(|_| "null".to_string());
+    format!("window.__LUMEN__ = {{ capabilities: {}, live_src: {} }};", caps, src)
 }
 
 /// One surface per display, for platforms where a window cannot span displays (macOS, Wayland).
 /// Uses Tauri's monitor list rather than the native one: it is safe to call from any thread.
-#[allow(dead_code)] // Windows spans every monitor with a single surface instead
 pub(crate) fn per_monitor(app: &AppHandle) -> Vec<SurfaceSpec> {
     let monitors = app.available_monitors().unwrap_or_default();
     if monitors.is_empty() {

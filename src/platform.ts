@@ -18,6 +18,10 @@ export interface Capabilities {
   static_wallpaper: boolean;
   custom_titlebar: boolean;
   beta: boolean;
+  /** Whether each monitor can play its own live wallpaper. */
+  per_monitor_live: boolean;
+  /** Whether each monitor can hold its own still image. */
+  per_monitor_static: boolean;
 }
 
 /** Only reached by `vite dev` in a plain browser tab, where the backend injected nothing. */
@@ -35,11 +39,17 @@ const FALLBACK: Capabilities = {
   static_wallpaper: false,
   custom_titlebar: true,
   beta: false,
+  per_monitor_live: false,
+  per_monitor_static: false,
 };
 
 declare global {
   interface Window {
-    __LUMEN__?: { capabilities: Capabilities };
+    __LUMEN__?: {
+      capabilities: Capabilities;
+      /** Set only on a live wallpaper surface: the file this monitor plays. */
+      live_src?: string | null;
+    };
   }
 }
 

@@ -86,10 +86,19 @@ pub fn on_battery() -> bool {
         .any(|battery| battery.state() == starship_battery::State::Discharging)
 }
 
-pub fn set_static_wallpaper(path: &str, _fit: &FitMode) -> Result<(), String> {
+/// `_target` is ignored for now: per-screen stills need NSWorkspace per NSScreen, and macOS is
+/// still beta here.
+pub fn set_static_wallpaper(path: &str, _fit: &FitMode, _target: Option<super::MonitorTarget>) -> Result<(), String> {
     // The `wallpaper` crate drives Finder over AppleScript, so the first call asks for Automation
     // permission. Moving to NSWorkspace would remove the prompt and bring real fit modes.
     ::wallpaper::set_from_path(path).map_err(|e| format!("Failed to set wallpaper: {}", e))
+}
+
+/// One desktop image here, so re-applying it is both the repaint and the whole story.
+pub fn redraw_wallpaper(fit: &FitMode) {
+    if let Some(current) = current_static_wallpaper() {
+        let _ = set_static_wallpaper(&current, fit, None);
+    }
 }
 
 pub fn current_static_wallpaper() -> Option<String> {

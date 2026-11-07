@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useUIStore } from '../../store/uiStore';
+import { MonitorPicker } from './MonitorPicker';
 import './Sidebar.css';
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -72,6 +73,8 @@ export const Sidebar: React.FC = () => {
           </NavLink>
         ))}
       </nav>
+
+      <MonitorPicker />
 
       <div className="sidebar__footer">
         <button

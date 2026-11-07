@@ -27,6 +27,20 @@ pub struct Capabilities {
     pub custom_titlebar: bool,
     /// Marks a platform as not fully tested, so the UI can say so.
     pub beta: bool,
+    /// Whether a different live wallpaper can play on each monitor.
+    pub per_monitor_live: bool,
+    /// Whether a different still image can be set on each monitor. Windows has an API for it;
+    /// GNOME, KDE and the rest keep a single desktop image.
+    pub per_monitor_static: bool,
+}
+
+/// Which monitor a wallpaper is meant for, named both ways because the platforms disagree:
+/// Windows identifies a monitor by its rectangle, macOS by its position in the screen list.
+#[derive(Debug, Clone, Copy)]
+pub struct MonitorTarget {
+    pub index: usize,
+    /// Physical bounds: x, y, width, height.
+    pub bounds: (i32, i32, u32, u32),
 }
 
 impl Capabilities {
@@ -54,6 +68,8 @@ impl Capabilities {
             static_wallpaper: true,
             custom_titlebar: true,
             beta: false,
+            per_monitor_live: true,
+            per_monitor_static: false,
         }
     }
 

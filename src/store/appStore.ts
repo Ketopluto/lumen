@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, errorText, isLive, type Wallpaper } from '../api';
+import { api, errorText, isLive, type Monitor, type Wallpaper } from '../api';
 import { useUIStore, type Toast } from './uiStore';
 
 const toast = (t: Omit<Toast, 'id'>) => useUIStore.getState().addToast(t);
@@ -14,6 +14,17 @@ interface AppState {
   /** wallpaper id -> download progress 0..1, or null when unknown. Present = busy. */
   busy: Record<string, number | null>;
 
+  /** Every monitor, for the picker. Empty or single means the picker stays hidden. */
+  monitors: Monitor[];
+  /** Which monitor the next wallpaper goes on; null means all of them. */
+  targetMonitor: number | null;
+  /** Monitor index to the file playing there. */
+  liveByMonitor: Record<number, string>;
+
+  loadMonitors: () => Promise<void>;
+  setTargetMonitor: (monitor: number | null) => void;
+  liveOnMonitor: (monitor: number) => boolean;
+  clearMonitor: (monitor: number) => Promise<void>;
   loadFavorites: () => Promise<void>;
   favoriteIdOf: (wp: Wallpaper) => string | undefined;
   toggleFavorite: (wp: Wallpaper) => Promise<void>;
@@ -42,6 +53,38 @@ export const useAppStore = create<AppState>((set, get) => {
     favUrls: {},
     favVersion: 0,
     busy: {},
+    monitors: [],
+    targetMonitor: null,
+    liveByMonitor: {},
+
+    loadMonitors: async () => {
+      try {
+        const monitors = await api.getMonitors();
+        const status = await api.liveStatus();
+        set((s) => ({
+          monitors,
+          liveByMonitor: status.per_monitor ?? {},
+          // A monitor that has been unplugged must not stay selected.
+          targetMonitor: monitors.some((m) => m.index === s.targetMonitor) ? s.targetMonitor : null,
+        }));
+      } catch {
+        // Running outside Tauri (vite dev): no monitors to offer.
+      }
+    },
+
+    setTargetMonitor: (monitor) => set({ targetMonitor: monitor }),
+
+    liveOnMonitor: (monitor) => monitor in get().liveByMonitor,
+
+    clearMonitor: async (monitor) => {
+      try {
+        await api.clearMonitor(monitor);
+        toast({ type: 'success', title: `Stopped on monitor ${monitor + 1}`, duration: 2000 });
+      } catch (e) {
+        toast({ type: 'error', title: "Couldn't stop that monitor", message: errorText(e), duration: 6000 });
+      }
+      await get().loadMonitors();
+    },
 
     loadFavorites: async () => {
       try {
@@ -78,9 +121,16 @@ export const useAppStore = create<AppState>((set, get) => {
 
     apply: (wp) =>
       run(wp, async () => {
+        const target = get().targetMonitor;
         try {
-          await api.setWallpaper(wp);
-          toast({ type: 'success', title: isLive(wp) ? 'Live wallpaper set' : 'Wallpaper set', duration: 2500 });
+          await api.setWallpaper(wp, undefined, target);
+          const where = target === null ? '' : ` on monitor ${target + 1}`;
+          toast({
+            type: 'success',
+            title: `${isLive(wp) ? 'Live wallpaper' : 'Wallpaper'} set${where}`,
+            duration: 2500,
+          });
+          await get().loadMonitors();
         } catch (e) {
           toast({ type: 'error', title: "Couldn't set wallpaper", message: errorText(e), duration: 6000 });
         }

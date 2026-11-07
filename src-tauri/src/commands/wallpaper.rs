@@ -5,15 +5,24 @@ use std::sync::Arc;
 use tauri::State;
 
 /// Set any wallpaper (remote or local, image or video). Returns the local file path.
+///
+/// `monitor` of `None` dresses the whole desktop; a monitor index sets that one alone.
 #[tauri::command]
 pub async fn set_wallpaper(
     app: tauri::AppHandle,
     wallpaper: WallpaperInfo,
     fit_mode: Option<FitMode>,
+    monitor: Option<usize>,
     db: State<'_, Arc<Database>>,
 ) -> Result<String, String> {
     let fit = fit_mode.unwrap_or_else(|| db.settings().fit_mode);
-    wallpaper_engine::apply(&app, &db, &wallpaper, &fit).await
+    wallpaper_engine::apply(&app, &db, &wallpaper, &fit, monitor).await
+}
+
+/// Stop the live wallpaper on one monitor, leaving the others playing.
+#[tauri::command]
+pub fn clear_monitor_wallpaper(app: tauri::AppHandle, monitor: usize) -> Result<(), String> {
+    wallpaper_engine::clear_monitor(&app, monitor)
 }
 
 /// Download a wallpaper into the download folder without applying it.

@@ -18,6 +18,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   useEffect(() => {
     api.getSettings().then((s) => applyTheme(s.theme)).catch(console.error);
     useAppStore.getState().loadFavorites();
+    useAppStore.getState().loadMonitors();
     // Tell the backend what this webview can decode, so it can refuse files that would end up as a
     // black desktop and hide sources that cannot play here.
     api.setMediaSupport(mediaSupport).catch(() => {});

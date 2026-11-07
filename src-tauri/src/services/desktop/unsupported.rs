@@ -32,9 +32,11 @@ pub fn on_battery() -> bool {
     false
 }
 
-pub fn set_static_wallpaper(_path: &str, _fit: &FitMode) -> Result<(), String> {
+pub fn set_static_wallpaper(_path: &str, _fit: &FitMode, _target: Option<super::MonitorTarget>) -> Result<(), String> {
     Err("Setting the wallpaper isn't supported on this system".into())
 }
+
+pub fn redraw_wallpaper(_fit: &FitMode) {}
 
 pub fn current_static_wallpaper() -> Option<String> {
     None
