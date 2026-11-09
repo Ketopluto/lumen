@@ -24,10 +24,9 @@
 }
 
 .titlebar__title {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-lg);
+  font-weight: 700;
   color: var(--color-text-primary);
-  letter-spacing: var(--letter-spacing-wide);
 }
 
 .titlebar__controls {

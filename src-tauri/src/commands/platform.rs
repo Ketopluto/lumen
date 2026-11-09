@@ -7,6 +7,13 @@ pub fn get_capabilities() -> Capabilities {
     desktop::capabilities().clone()
 }
 
+/// What each monitor is showing right now, keyed by the same index `get_monitors` reports, so the
+/// picker can draw the real desk rather than empty rectangles.
+#[tauri::command]
+pub fn get_monitor_wallpapers(app: tauri::AppHandle) -> std::collections::BTreeMap<usize, String> {
+    desktop::current_monitor_wallpapers(&app)
+}
+
 /// A monitor as the UI shows it: numbered, named, and with the size people recognise it by.
 #[derive(serde::Serialize)]
 pub struct MonitorRow {

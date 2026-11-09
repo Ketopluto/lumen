@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A newer push to the same branch makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     name: ${{ matrix.os }}
@@ -13,10 +18,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-22.04]
+        # macOS is on demand. Its runners are scarce enough that the leg regularly never gets a
+        # machine, and a job that is never scheduled fails the run no matter what the code did —
+        # it failed a CSS-only commit this way. macOS still compiles on every release tag, and
+        # here whenever you ask for it with "Run workflow".
+        os: ${{ github.event_name == 'workflow_dispatch' && fromJSON('["windows-latest", "ubuntu-22.04", "macos-latest"]') || fromJSON('["windows-latest", "ubuntu-22.04"]') }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -26,9 +35,9 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # Tauri 2 needs webkit2gtk 4.1; ubuntu-22.04 is the oldest image that has it, which also

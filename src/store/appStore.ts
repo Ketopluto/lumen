@@ -20,6 +20,8 @@ interface AppState {
   targetMonitor: number | null;
   /** Monitor index to the file playing there. */
   liveByMonitor: Record<number, string>;
+  /** Monitor index to the still image on it, as the desktop itself reports it. */
+  stillByMonitor: Record<number, string>;
 
   loadMonitors: () => Promise<void>;
   setTargetMonitor: (monitor: number | null) => void;
@@ -56,14 +58,19 @@ export const useAppStore = create<AppState>((set, get) => {
     monitors: [],
     targetMonitor: null,
     liveByMonitor: {},
+    stillByMonitor: {},
 
     loadMonitors: async () => {
       try {
         const monitors = await api.getMonitors();
-        const status = await api.liveStatus();
+        const [status, stills] = await Promise.all([
+          api.liveStatus(),
+          api.getMonitorWallpapers().catch(() => ({}) as Record<number, string>),
+        ]);
         set((s) => ({
           monitors,
           liveByMonitor: status.per_monitor ?? {},
+          stillByMonitor: stills,
           // A monitor that has been unplugged must not stay selected.
           targetMonitor: monitors.some((m) => m.index === s.targetMonitor) ? s.targetMonitor : null,
         }));

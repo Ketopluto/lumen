@@ -143,6 +143,7 @@ pub fn run() {
             commands::sources::search,
             commands::platform::get_capabilities,
             commands::platform::get_monitors,
+            commands::platform::get_monitor_wallpapers,
             commands::updates::get_update_status,
             commands::updates::install_update,
             commands::wallpaper::clear_monitor_wallpaper,

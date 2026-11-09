@@ -26,6 +26,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const unlisten = listen<{ id: string; received: number; total: number | null }>('download-progress', (e) =>
       useAppStore.getState().setProgress(e.payload.id, e.payload.received, e.payload.total),
     );
+    // The monitor panel shows what is really on each screen, so it re-reads the desktop whenever
+    // the desktop changes rather than predicting the outcome of the change.
+    const refresh = () => useAppStore.getState().loadMonitors();
+    const unlistenDesktop = [listen('wallpaper-changed', refresh), listen('live-state', refresh)];
     // Raised by the wallpaper surface when a file it was handed will not play.
     const unlistenError = listen<string>('live-error', (e) =>
       useUIStore.getState().addToast({ type: 'error', title: 'Live wallpaper', message: e.payload }),
@@ -33,6 +37,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     return () => {
       unlisten.then((f) => f());
       unlistenError.then((f) => f());
+      unlistenDesktop.forEach((u) => u.then((f) => f()));
     };
   }, []);
 

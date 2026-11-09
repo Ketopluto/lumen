@@ -15,12 +15,10 @@
 
 .browse__tab {
   position: relative;
-  padding: 6px 12px 8px;
+  padding: 4px 12px 9px;
   border-radius: var(--radius-md);
-  font-family: var(--font-display);
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
   color: var(--color-text-tertiary);
   transition: color var(--transition-fast), background var(--transition-fast);
 }
@@ -87,36 +85,36 @@
 .segmented {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  gap: var(--space-1);
 }
 
 .segmented__label {
-  padding: 0 var(--space-2) 0 var(--space-1);
+  padding-right: var(--space-1);
   font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
 }
 
+/* Same switch as .filter-chip — see App.css. */
 .segmented__item {
-  padding: 4px 12px;
-  border-radius: var(--radius-md);
+  padding: 3px var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--color-text-secondary);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .segmented__item:hover {
   color: var(--color-text-primary);
+  border-color: var(--color-border-hover);
 }
 
 .segmented__item.is-active {
-  background: var(--color-accent-subtle);
-  color: var(--color-text-primary);
-  box-shadow: inset 0 0 0 1px var(--color-border-accent);
+  background: var(--color-text-primary);
+  border-color: var(--color-text-primary);
+  color: var(--color-text-inverse);
 }
 
 .segmented__item:focus-visible {

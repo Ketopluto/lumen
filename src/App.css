@@ -8,7 +8,7 @@
 /* Filter chips */
 .filter-panel { display:flex; gap:var(--space-6); flex-wrap:wrap; padding:var(--space-2) 0 var(--space-8); }
 .filter-group { display:flex; flex-direction:column; gap:var(--space-2); }
-.filter-label { font-size:var(--font-size-xs); font-weight:var(--font-weight-semibold); color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:var(--letter-spacing-wider); }
+.filter-label { font-size:var(--font-size-xs); color:var(--color-text-tertiary); }
 .filter-chips { display:flex; gap:var(--space-1); flex-wrap:wrap; }
 /* Squared off and quiet: a filter is a switch, not a badge. The chosen one is filled, so which
    is on is readable at a glance instead of inferred from a tint. */

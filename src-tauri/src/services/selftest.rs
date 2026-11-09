@@ -73,6 +73,19 @@ pub fn run(app: &AppHandle) -> i32 {
         report_line(&line);
     }
 
+    // What the picker in the sidebar will draw on each screen. Printed here so a wrong thumbnail
+    // can be checked against the desktop without opening the app.
+    for (index, path) in desktop::current_monitor_wallpapers(app) {
+        report_line(&format!(
+            "showing[{}] {}",
+            index,
+            std::path::Path::new(&path)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(&path)
+        ));
+    }
+
     let args: Vec<String> = std::env::args().collect();
     let specs = if per_monitor_requested(&args) {
         let monitors: Vec<usize> = desktop::monitors(app).into_iter().map(|m| m.index).collect();

@@ -25,7 +25,7 @@ jobs:
     outputs:
       release_id: ${{ steps.draft.outputs.release_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Create or reuse the draft
         id: draft
@@ -80,7 +80,7 @@ jobs:
             optional: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
 
@@ -93,9 +93,9 @@ jobs:
           workspaces: src-tauri
           key: ${{ matrix.target }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # webkit2gtk 4.1 is what Tauri 2 links against; ubuntu-22.04 is the oldest image that

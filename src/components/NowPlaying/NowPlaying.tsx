@@ -78,8 +78,8 @@ const Dock: React.FC<{ wallpaper: Wallpaper; live: LiveStatus | null }> = ({ wal
         ) : null}
       </div>
       <div className="dock__text">
-        <span className="dock__eyebrow">On your desktop</span>
         <span className="dock__title">{title}</span>
+        <span className="dock__source">{source ?? 'On your desktop'}</span>
       </div>
       {status}
       {actions && <div className="dock__actions">{actions}</div>}

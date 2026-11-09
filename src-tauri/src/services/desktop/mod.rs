@@ -54,6 +54,8 @@ const _CONTRACT: () = {
     let _: fn(&FitMode) = imp::redraw_wallpaper;
     let _: fn(&WebviewWindow) -> SurfaceReport = imp::describe;
     let _: fn(&AppHandle) -> Vec<MonitorInfo> = imp::monitor_layout;
+    #[cfg(target_os = "windows")]
+    let _: fn(&[MonitorTarget]) -> std::collections::BTreeMap<usize, String> = imp::current_monitor_wallpapers;
 };
 
 /// Computed once: reading the session type and monitor layout is not free.
@@ -126,6 +128,28 @@ pub fn surfaces_for(app: &AppHandle, monitors: &[usize]) -> Vec<SurfaceSpec> {
             spec
         })
         .collect()
+}
+
+/// The still image each monitor is showing.
+///
+/// Only Windows keeps one image per monitor; everywhere else the desktop has a single wallpaper,
+/// so every monitor truthfully reports the same file. The UI uses this to show what is actually
+/// on each screen, so it must never guess — a monitor nothing is known about is left out.
+pub fn current_monitor_wallpapers(app: &AppHandle) -> std::collections::BTreeMap<usize, String> {
+    #[cfg(target_os = "windows")]
+    {
+        imp::current_monitor_wallpapers(&monitors(app))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let Some(path) = imp::current_static_wallpaper() else {
+            return Default::default();
+        };
+        monitors(app)
+            .into_iter()
+            .map(|monitor| (monitor.index, path.clone()))
+            .collect()
+    }
 }
 
 /// Windows only, read-only: the shell's own monitor list, for diagnosing a still image that

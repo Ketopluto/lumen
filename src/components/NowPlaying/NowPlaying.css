@@ -22,6 +22,12 @@
   pointer-events: none;
 }
 
+/* On the light theme the blurred wallpaper behind the dock is competing with the text rather
+   than tinting the panel, so it sits further back. */
+[data-theme='light'] .dock__ambient {
+  opacity: 0.22;
+}
+
 .dock__thumb,
 .dock__text,
 .dock__status,
@@ -55,15 +61,14 @@
   gap: 1px;
 }
 
-.dock__eyebrow {
+.dock__source {
   font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
 }
 
 .dock__title {
-  font-family: var(--font-display);
-  font-size: var(--font-size-base);
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: 650;
   color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -83,7 +88,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #f2f2f2;
+  background: var(--color-accent);
   animation: dock-pulse 2s ease-out infinite;
 }
 
@@ -93,8 +98,8 @@
 }
 
 @keyframes dock-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(162, 76, 242, 0.6); }
-  80%, 100% { box-shadow: 0 0 0 9px rgba(162, 76, 242, 0); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 45%, transparent); }
+  80%, 100% { box-shadow: 0 0 0 9px transparent; }
 }
 
 .dock__actions {

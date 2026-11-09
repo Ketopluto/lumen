@@ -2,6 +2,7 @@
 
 use super::{Capabilities, MonitorInfo, MonitorTarget, SurfaceReport, SurfaceSpec};
 use crate::models::FitMode;
+use std::collections::BTreeMap;
 use std::ffi::c_void;
 use tauri::{AppHandle, WebviewWindow};
 use windows::core::{w, PCWSTR};
@@ -374,6 +375,54 @@ pub fn redraw_wallpaper(_fit: &FitMode) {
 
 pub fn current_static_wallpaper() -> Option<String> {
     ::wallpaper::get().ok().filter(|p| !p.is_empty())
+}
+
+/// The still image on each of `targets`, read straight back from the shell.
+///
+/// Same identification problem as `set_monitor_wallpaper`: device paths come in no particular
+/// order, so each monitor is found by its rectangle and only falls back to list position. A
+/// monitor the shell has nothing for is simply absent from the map.
+pub fn current_monitor_wallpapers(targets: &[MonitorTarget]) -> BTreeMap<usize, String> {
+    let mut found = BTreeMap::new();
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let Ok(desktop) = CoCreateInstance::<_, IDesktopWallpaper>(&DesktopWallpaper, None, CLSCTX_ALL) else {
+            return found;
+        };
+        let count = desktop.GetMonitorDevicePathCount().unwrap_or(0);
+        for position in 0..count {
+            let Ok(id) = desktop.GetMonitorDevicePathAt(position) else {
+                continue;
+            };
+            let rect = desktop.GetMonitorRECT(PCWSTR(id.0)).ok();
+            let index = targets
+                .iter()
+                .find(|target| {
+                    rect.is_some_and(|r| {
+                        let (x, y, width, height) = target.bounds;
+                        r.left == x
+                            && r.top == y
+                            && r.right - r.left == width as i32
+                            && r.bottom - r.top == height as i32
+                    })
+                })
+                .map(|target| target.index)
+                .or_else(|| {
+                    let position = position as usize;
+                    targets.iter().any(|t| t.index == position).then_some(position)
+                });
+            let path = desktop
+                .GetWallpaper(PCWSTR(id.0))
+                .ok()
+                .and_then(|w| w.to_string().ok())
+                .filter(|p| !p.is_empty());
+            CoTaskMemFree(Some(id.0 as *const c_void));
+            if let (Some(index), Some(path)) = (index, path) {
+                found.entry(index).or_insert(path);
+            }
+        }
+    }
+    found
 }
 
 /// Reports where the surface actually landed — see `SurfaceReport`.

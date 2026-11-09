@@ -11,13 +11,15 @@
  * brand hue, so nothing competes with the thing being chosen.
  */
 :root {
-  /* Core palette — true neutral, no blue or violet cast */
-  --color-bg-primary: #0e0e0e;
-  --color-bg-secondary: #121212;
-  --color-bg-tertiary: #161616;
-  --color-bg-elevated: #1b1b1b;
-  --color-bg-hover: #212121;
-  --color-bg-active: #272727;
+  /* Core palette — true neutral, no blue or violet cast. The content sits on the darkest
+     value so the pictures are the brightest thing in the window, and every piece of chrome
+     (titlebar, sidebar, dock) is lifted a step off it, which is the whole structure. */
+  --color-bg-primary: #0a0a0a;
+  --color-bg-secondary: #141414;
+  --color-bg-tertiary: #1a1a1a;
+  --color-bg-elevated: #1f1f1f;
+  --color-bg-hover: #252525;
+  --color-bg-active: #2c2c2c;
 
   /* Surface colors */
   --color-surface: rgba(255, 255, 255, 0.03);
@@ -25,11 +27,11 @@
   --color-surface-active: rgba(255, 255, 255, 0.09);
 
   /* Text */
-  --color-text-primary: #f2f2f2;
-  --color-text-secondary: #8a8a8a;
-  --color-text-tertiary: #5a5a5a;
-  --color-text-disabled: #3a3a3a;
-  --color-text-inverse: #0e0e0e;
+  --color-text-primary: #f4f4f4;
+  --color-text-secondary: #9b9b9b;
+  --color-text-tertiary: #6d6d6d;
+  --color-text-disabled: #444444;
+  --color-text-inverse: #0a0a0a;
 
   /* Accent — paper, not a hue. Kept under the old names so every component inherits it. */
   --color-accent: #f2f2f2;
@@ -52,15 +54,20 @@
   --color-info-subtle: rgba(59, 130, 246, 0.12);
 
   /* Borders — hairlines do the work shadows used to */
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-border-hover: rgba(255, 255, 255, 0.22);
+  --color-border: rgba(255, 255, 255, 0.09);
+  --color-border-hover: rgba(255, 255, 255, 0.2);
   --color-border-active: rgba(255, 255, 255, 0.38);
   --color-border-accent: rgba(255, 255, 255, 0.55);
 
-  /* Typography */
-  --font-family: system-ui, sans-serif;
-  --font-display: system-ui, sans-serif;
+  /* Typography. Archivo is a signage grotesque — the lettering used to label things in public
+     places, which is what every word in this window is doing. One variable file covers both
+     voices: text at normal width, and headings narrowed to 89% with tight tracking, which is
+     the app's accent now that the palette has none. */
+  --font-family: 'Archivo Variable', system-ui, sans-serif;
+  --font-display: 'Archivo Variable', system-ui, sans-serif;
   --font-mono: ui-monospace, monospace;
+  --display-width: 89%;
+  --display-tracking: -0.015em;
   --font-size-xs: 0.6875rem;    /* 11px */
   --font-size-sm: 0.75rem;      /* 12px */
   --font-size-md: 0.8125rem;    /* 13px */
@@ -148,8 +155,8 @@
   --z-max: 9999;
 
   /* Layout */
-  --sidebar-width: 240px;
-  --sidebar-width-collapsed: 64px;
+  --sidebar-width: 200px;
+  --sidebar-width-collapsed: 60px;
   --titlebar-height: 40px;
   --content-max-width: 1600px;
 
@@ -175,25 +182,31 @@
 
 /* ---------- Light Theme ---------- */
 [data-theme='light'] {
-  --color-bg-primary: #f5f5f7;
-  --color-bg-secondary: #ffffff;
-  --color-bg-tertiary: #eaeaef;
+  --color-bg-primary: #f4f4f4;
+  --color-bg-secondary: #fafafa;
+  --color-bg-tertiary: #e8e8e8;
   --color-bg-elevated: #ffffff;
-  --color-bg-hover: #e8e8f0;
-  --color-bg-active: #dddde8;
+  --color-bg-hover: #ececec;
+  --color-bg-active: #e0e0e0;
 
   --color-surface: rgba(0, 0, 0, 0.03);
   --color-surface-hover: rgba(0, 0, 0, 0.05);
   --color-surface-active: rgba(0, 0, 0, 0.08);
 
-  --color-text-primary: #1a1a2e;
-  --color-text-secondary: #5a5a70;
-  --color-text-tertiary: #8a8a9e;
-  --color-text-disabled: #b5b5c5;
-  --color-text-inverse: #f0f0f5;
+  --color-text-primary: #141414;
+  --color-text-secondary: #5c5c5c;
+  --color-text-tertiary: #8a8a8a;
+  --color-text-disabled: #b8b8b8;
+  --color-text-inverse: #fafafa;
 
-  --color-accent-subtle: rgba(99, 102, 241, 0.1);
-  --color-accent-subtle-hover: rgba(99, 102, 241, 0.18);
+  /* Ink, the light-theme counterpart of paper: selection stays achromatic here too. */
+  --color-accent: #141414;
+  --color-accent-hover: #000000;
+  --color-accent-active: #2e2e2e;
+  --color-accent-gradient: #141414;
+  --color-accent-gradient-hover: #000000;
+  --color-accent-subtle: rgba(0, 0, 0, 0.08);
+  --color-accent-subtle-hover: rgba(0, 0, 0, 0.14);
 
   --color-border: rgba(0, 0, 0, 0.08);
   --color-border-hover: rgba(0, 0, 0, 0.14);
@@ -384,13 +397,26 @@ html {
 body {
   font-family: var(--font-family);
   font-size: var(--font-size-base);
-  font-weight: var(--font-weight-regular);
+  /* Archivo at 13-14px wants a shade more than regular to hold up on a dark background. */
+  font-weight: 450;
   line-height: var(--line-height-normal);
   color: var(--color-text-primary);
   background: var(--color-bg-primary);
   overflow: hidden;
   user-select: none;
   cursor: default;
+}
+
+/* The display voice: narrowed and tightened. Everything that titles something uses this. */
+.display,
+.page-title,
+.titlebar__title,
+.browse__tab,
+.dock__title,
+.settings-section__title {
+  font-family: var(--font-display);
+  font-stretch: var(--display-width);
+  letter-spacing: var(--display-tracking);
 }
 
 #root {
@@ -543,21 +569,17 @@ body.theme-transitioning * {
   transition-timing-function: ease !important;
 }
 
-/* Each platform's own faces. data-os is set before the first paint (src/platform.ts). */
+/* The text face is bundled and identical everywhere; only the monospace, which carries file
+   names and pixel dimensions, defers to whatever the platform does best with them.
+   data-os is set before the first paint (src/platform.ts). */
 :root[data-os='windows'] {
-  --font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'Cascadia Mono', Consolas, monospace;
 }
 
 :root[data-os='macos'] {
-  --font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif;
-  --font-display: -apple-system, 'SF Pro Display', system-ui, sans-serif;
   --font-mono: 'SF Mono', Menlo, monospace;
 }
 
 :root[data-os='linux'] {
-  --font-family: 'Inter', 'Cantarell', 'Ubuntu', 'Noto Sans', system-ui, sans-serif;
-  --font-display: 'Inter', 'Cantarell', 'Ubuntu', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'DejaVu Sans Mono', ui-monospace, monospace;
 }

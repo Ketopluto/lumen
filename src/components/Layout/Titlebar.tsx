@@ -18,22 +18,28 @@ export const Titlebar: React.FC = () => {
     <div className="titlebar" data-tauri-drag-region id="titlebar">
       <div className="titlebar__brand" data-tauri-drag-region>
         <div className="titlebar__logo">
-          <svg width="18" height="18" viewBox="64 64 896 896">
+          {/* A screen with a sun over a horizon: the wallpaper, drawn in the one colour this
+              window has. currentColor, so it is paper on the dark theme and ink on the light. */}
+          <svg width="19" height="19" viewBox="0 0 20 20" aria-hidden="true">
             <defs>
-              <linearGradient id="logo-grad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#5b5ff0" />
-                <stop offset="1" stopColor="#a24cf2" />
-              </linearGradient>
-              <clipPath id="logo-clip">
-                <rect x="64" y="64" width="896" height="896" rx="224" />
+              <clipPath id="logo-screen">
+                <rect x="2.9" y="3.9" width="14.2" height="12.2" rx="2.1" />
               </clipPath>
             </defs>
-            <rect x="64" y="64" width="896" height="896" rx="224" fill="url(#logo-grad)" />
-            <g clipPath="url(#logo-clip)">
-              <path d="M64 690 C 250 560, 430 565, 580 640 S 850 715, 960 610 V 960 H 64 Z" fill="#fff" fillOpacity="0.38" />
-              <path d="M64 800 C 250 690, 430 695, 600 770 S 860 835, 960 745 V 960 H 64 Z" fill="#fff" />
+            <rect
+              x="2.9"
+              y="3.9"
+              width="14.2"
+              height="12.2"
+              rx="2.1"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.3"
+            />
+            <g clipPath="url(#logo-screen)" fill="currentColor">
+              <circle cx="13.2" cy="7.6" r="1.7" />
+              <path d="M2.9 13.1c2.1-1.9 4-1.6 5.6-0.6s3.3 1.7 5 0.7 2.5-1 3.6-0.2V16.1H2.9Z" />
             </g>
-            <circle cx="680" cy="370" r="108" fill="#fff" />
           </svg>
         </div>
         <span className="titlebar__title" data-tauri-drag-region>Lumen</span>

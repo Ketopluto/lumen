@@ -149,6 +149,8 @@ export const api = {
   setWallpaper: (wallpaper: Wallpaper, fitMode?: FitMode, monitor?: number | null) =>
     invoke<string>('set_wallpaper', { wallpaper, fitMode, monitor: monitor ?? null }),
   getMonitors: () => invoke<Monitor[]>('get_monitors'),
+  /** Monitor index to the still image that monitor is showing right now. */
+  getMonitorWallpapers: () => invoke<Record<number, string>>('get_monitor_wallpapers'),
   getUpdateStatus: () => invoke<UpdateStatus>('get_update_status'),
   installUpdate: () => invoke<void>('install_update'),
   clearMonitor: (monitor: number) => invoke<void>('clear_monitor_wallpaper', { monitor }),
