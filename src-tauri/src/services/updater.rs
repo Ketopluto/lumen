@@ -19,6 +19,9 @@ use tauri::{AppHandle, Emitter, Manager};
 const LATEST_RELEASE: &str = "https://api.github.com/repos/Ketopluto/lumen/releases/latest";
 /// What the next launch should be running, if an update was started.
 const EXPECTED_KEY: &str = "update_expected_version";
+/// A version whose installer ran and changed nothing. Never retried on its own: an update that
+/// exits the app and fails takes the app down on every launch, which is worse than being behind.
+const FAILED_KEY: &str = "update_failed_version";
 
 #[derive(Deserialize)]
 struct Release {
@@ -167,7 +170,7 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
     let db = app.state::<Arc<Database>>();
     let _ = db.set_setting(EXPECTED_KEY, &version);
     log::info!("installing Lumen {} and restarting", version);
-    launch_installer(&file)?;
+    launch_installer(&file, &version)?;
     // Leave, so the file being replaced is not held open by this process.
     app.exit(0);
     Ok(())
@@ -176,24 +179,72 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
 /// Runs the installer silently and starts the new build afterwards, through one detached shell so
 /// it outlives this process.
 #[cfg(target_os = "windows")]
-fn launch_installer(installer: &std::path::Path) -> Result<(), String> {
+fn launch_installer(installer: &std::path::Path, version: &str) -> Result<(), String> {
+    use std::io::Write;
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    const DETACHED_PROCESS: u32 = 0x0000_0008;
 
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    // Wait for the installer, then start what it installed.
-    let script = format!("\"{}\" /S & start \"\" \"{}\"", installer.display(), exe.display());
-    std::process::Command::new("cmd")
-        .args(["/C", &script])
-        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+    let dir = crate::utils::app_data_dir().join("updates");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let script_path = dir.join("install.ps1");
+    let transcript = dir.join("install.log");
+
+    // The installer cannot replace an executable that is still running, and silently does nothing
+    // when it tries — so the handover waits for this process to actually be gone, checks the
+    // version afterwards rather than trusting an exit code, retries, and then starts what it
+    // installed. A transcript is left behind because an update that fails is otherwise invisible.
+    let script = format!(
+        r#"$ErrorActionPreference = 'SilentlyContinue'
+Start-Transcript -Path '{transcript}' -Force | Out-Null
+$deadline = (Get-Date).AddSeconds(60)
+while ((Get-Process -Name lumen -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) {{
+  Start-Sleep -Milliseconds 200
+}}
+if (Get-Process -Name lumen -ErrorAction SilentlyContinue) {{
+  Write-Output 'lumen is still running after 60s; not installing'
+}} else {{
+  Start-Sleep -Milliseconds 800
+  foreach ($try in 1..3) {{
+    Start-Process -FilePath '{installer}' -ArgumentList '/S' -Wait
+    Start-Sleep -Milliseconds 600
+    $installed = (Get-Item '{exe}').VersionInfo.ProductVersion
+    Write-Output "attempt $try installed $installed"
+    if ($installed -eq '{version}') {{ break }}
+  }}
+}}
+Start-Process -FilePath '{exe}'
+Stop-Transcript | Out-Null
+"#,
+        transcript = transcript.display(),
+        installer = installer.display(),
+        exe = exe.display(),
+        version = version,
+    );
+    let mut file = std::fs::File::create(&script_path).map_err(|e| e.to_string())?;
+    file.write_all(script.as_bytes()).map_err(|e| e.to_string())?;
+    drop(file);
+
+    // One flag only: DETACHED_PROCESS and CREATE_NO_WINDOW are mutually exclusive, and passing
+    // both is why the previous handover never ran at all.
+    std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-WindowStyle",
+            "Hidden",
+            "-File",
+            &script_path.to_string_lossy(),
+        ])
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("could not start the installer: {}", e))
 }
 
 #[cfg(not(target_os = "windows"))]
-fn launch_installer(_installer: &std::path::Path) -> Result<(), String> {
+fn launch_installer(_installer: &std::path::Path, _version: &str) -> Result<(), String> {
     Err("Lumen can only install its own updates on Windows".into())
 }
 
@@ -208,8 +259,12 @@ pub fn confirm_previous(app: &AppHandle) {
     let _ = db.delete_setting(EXPECTED_KEY);
     if parts(&current) >= parts(&expected) {
         log::info!("update to {} took effect (running {})", expected, current);
+        let _ = db.delete_setting(FAILED_KEY);
         return;
     }
+    // Remembered so the next launch does not try the same thing again and exit the app for
+    // nothing. Settings can still install it on request.
+    let _ = db.set_setting(FAILED_KEY, &expected);
     log::warn!(
         "update to {} did not take effect: still running {}. The installer may have been unable to \
          replace the running executable.",
@@ -233,6 +288,15 @@ pub fn spawn_startup_check(app: &AppHandle) {
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         confirm_previous(&app);
         let status = check(&app).await;
+        let failed = app.state::<Arc<Database>>().get_setting(FAILED_KEY).ok().flatten();
+        if status.available && failed.as_deref() == status.latest.as_deref() {
+            log::warn!(
+                "not installing {} again on its own: the last attempt changed nothing. Install it \
+                 from Settings to try once more.",
+                failed.unwrap_or_default()
+            );
+            return;
+        }
         match (status.available, status.installable) {
             (false, _) => log::info!("Lumen {} is the latest release", status.current),
             (true, false) => log::info!(
