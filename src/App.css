@@ -1,12 +1,12 @@
 /* Shared page building blocks */
-.page-header { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-4); flex-wrap:wrap; }
+.page-header { display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-5); flex-wrap:wrap; }
 .page-title { font-family:var(--font-display); font-size:var(--font-size-2xl); font-weight:var(--font-weight-bold); letter-spacing:var(--letter-spacing-tight); }
 .page-subtitle { font-size:var(--font-size-sm); color:var(--color-text-tertiary); margin-top:2px; max-width:520px; }
 .page-actions { display:flex; gap:var(--space-2); align-items:center; flex-wrap:wrap; }
-.page-hint { font-size:var(--font-size-sm); color:var(--color-text-tertiary); margin-bottom:var(--space-3); }
+.page-hint { font-size:var(--font-size-sm); color:var(--color-text-tertiary); margin-bottom:var(--space-6); }
 
 /* Filter chips */
-.filter-panel { display:flex; gap:var(--space-6); flex-wrap:wrap; padding:var(--space-2) 0 var(--space-3); }
+.filter-panel { display:flex; gap:var(--space-6); flex-wrap:wrap; padding:var(--space-2) 0 var(--space-8); }
 .filter-group { display:flex; flex-direction:column; gap:var(--space-2); }
 .filter-label { font-size:var(--font-size-xs); font-weight:var(--font-weight-semibold); color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:var(--letter-spacing-wider); }
 .filter-chips { display:flex; gap:var(--space-1); flex-wrap:wrap; }

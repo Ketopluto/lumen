@@ -1,15 +1,27 @@
 .wp-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: var(--space-3);
-  padding-bottom: var(--space-4);
+  /* min() keeps a single column from overflowing a narrow window. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--grid-min)), 1fr));
+  column-gap: var(--grid-gutter);
+  row-gap: var(--grid-gutter-row);
+  padding-bottom: var(--space-6);
 }
 
 .wp-grid__item {
   animation: fadeIn 300ms ease backwards;
   /* Off-screen cards skip layout and paint, which keeps long scrolls light. */
   content-visibility: auto;
-  contain-intrinsic-size: auto 160px;
+  contain-intrinsic-size: auto 180px;
+}
+
+/* Narrow window: smaller frames so it stays two across instead of one giant card,
+   and a tighter gutter to match the smaller margin. */
+@media (max-width: 720px) {
+  .wp-grid {
+    --grid-min: 230px;
+    --grid-gutter: var(--space-3);
+    --grid-gutter-row: var(--space-4);
+  }
 }
 
 .wp-grid__sentinel {
