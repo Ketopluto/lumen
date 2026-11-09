@@ -128,6 +128,13 @@ pub fn surfaces_for(app: &AppHandle, monitors: &[usize]) -> Vec<SurfaceSpec> {
         .collect()
 }
 
+/// Windows only, read-only: the shell's own monitor list, for diagnosing a still image that
+/// landed on the wrong screen.
+#[cfg(target_os = "windows")]
+pub fn describe_monitors() -> Vec<String> {
+    imp::describe_monitors()
+}
+
 /// Makes the desktop paint its wallpaper again after a live surface disappears, without changing
 /// which image is set — re-applying one image would flatten per-monitor choices into it.
 pub fn redraw_wallpaper(fit: &FitMode) {

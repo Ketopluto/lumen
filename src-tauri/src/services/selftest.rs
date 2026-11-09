@@ -68,6 +68,11 @@ pub fn run(app: &AppHandle) -> i32 {
         }
     }
 
+    #[cfg(target_os = "windows")]
+    for line in crate::services::desktop::describe_monitors() {
+        report_line(&line);
+    }
+
     let args: Vec<String> = std::env::args().collect();
     let specs = if per_monitor_requested(&args) {
         let monitors: Vec<usize> = desktop::monitors(app).into_iter().map(|m| m.index).collect();

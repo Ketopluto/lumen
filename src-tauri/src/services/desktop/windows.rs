@@ -86,6 +86,58 @@ unsafe extern "system" fn collect_monitor(monitor: HMONITOR, _dc: HDC, _rect: *m
     TRUE
 }
 
+/// Read-only: what the shell thinks its monitors are, and what each is showing. The per-monitor
+/// still image is chosen by matching these rectangles against `monitor_layout`, so when a
+/// wallpaper lands on the wrong screen this is where the two views disagree.
+pub fn describe_monitors() -> Vec<String> {
+    let mut lines = Vec::new();
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let desktop: IDesktopWallpaper = match CoCreateInstance(&DesktopWallpaper, None, CLSCTX_ALL) {
+            Ok(desktop) => desktop,
+            Err(e) => {
+                lines.push(format!("shell: unavailable ({})", e));
+                return lines;
+            }
+        };
+        let count = desktop.GetMonitorDevicePathCount().unwrap_or(0);
+        for index in 0..count {
+            let Ok(id) = desktop.GetMonitorDevicePathAt(index) else {
+                continue;
+            };
+            let rect = desktop
+                .GetMonitorRECT(PCWSTR(id.0))
+                .map(|r| (r.left, r.top, r.right - r.left, r.bottom - r.top));
+            let current = desktop
+                .GetWallpaper(PCWSTR(id.0))
+                .ok()
+                .and_then(|w| w.to_string().ok())
+                .unwrap_or_default();
+            let path = id.to_string().unwrap_or_default();
+            let tail: String = path
+                .chars()
+                .rev()
+                .take(28)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+            lines.push(format!(
+                "shell[{}] rect={:?} wallpaper={} id=...{}",
+                index,
+                rect,
+                std::path::Path::new(&current)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("(none)"),
+                tail
+            ));
+            CoTaskMemFree(Some(id.0 as *const c_void));
+        }
+    }
+    lines
+}
+
 pub fn attach(window: &WebviewWindow, spec: &SurfaceSpec) -> Result<(), String> {
     let hwnd = window.hwnd().map_err(|e| e.to_string())?;
     unsafe { attach_hwnd(hwnd.0 as isize, spec.bounds) }
@@ -353,6 +405,85 @@ pub fn describe(window: &WebviewWindow) -> SurfaceReport {
 #[cfg(test)]
 mod monitor_tests {
     use super::*;
+
+    /// Proves a still image can be set on one monitor without touching the other.
+    ///
+    /// Nothing visible changes: the image already on the second monitor is copied to a new path
+    /// and that copy is set there, so the pixels are identical. What changes is the path the shell
+    /// reports per monitor, which is exactly what per-monitor independence means. The original
+    /// path is put back before anything is asserted.
+    ///
+    /// `cargo test monitor_tests::each_monitor -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn each_monitor_keeps_its_own_still_image() {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+            let desktop: IDesktopWallpaper =
+                CoCreateInstance(&DesktopWallpaper, None, CLSCTX_ALL).expect("IDesktopWallpaper");
+            let count = desktop.GetMonitorDevicePathCount().expect("monitor count");
+            if count < 2 {
+                println!("skipped: needs two monitors, found {}", count);
+                return;
+            }
+
+            let read = |index: u32| -> (RECT, String) {
+                let id = desktop.GetMonitorDevicePathAt(index).expect("device path");
+                let rect = desktop.GetMonitorRECT(PCWSTR(id.0)).expect("monitor rect");
+                let current = desktop
+                    .GetWallpaper(PCWSTR(id.0))
+                    .ok()
+                    .and_then(|w| w.to_string().ok())
+                    .unwrap_or_default();
+                CoTaskMemFree(Some(id.0 as *const c_void));
+                (rect, current)
+            };
+
+            let (_, first_before) = read(0);
+            let (second_rect, second_before) = read(1);
+            println!("monitor 0 shows {}", first_before);
+            println!("monitor 1 shows {}", second_before);
+            assert!(!second_before.is_empty(), "the second monitor has no wallpaper to copy");
+
+            // A byte-identical copy at a different path: same pixels, different identity.
+            let copy = std::env::temp_dir().join("lumen_monitor_probe.jpg");
+            std::fs::copy(&second_before, &copy).expect("copy the current wallpaper");
+
+            let target = MonitorTarget {
+                index: 1,
+                bounds: (
+                    second_rect.left,
+                    second_rect.top,
+                    (second_rect.right - second_rect.left) as u32,
+                    (second_rect.bottom - second_rect.top) as u32,
+                ),
+            };
+            let applied = set_static_wallpaper(&copy.to_string_lossy(), &FitMode::Fill, Some(target));
+
+            let (_, first_after) = read(0);
+            let (_, second_after) = read(1);
+
+            // Put the original back before judging anything, so a failure cannot leave it changed.
+            let restored = set_static_wallpaper(&second_before, &FitMode::Fill, Some(target));
+            let _ = std::fs::remove_file(&copy);
+
+            println!("after setting monitor 1: monitor 0 = {}", first_after);
+            println!("after setting monitor 1: monitor 1 = {}", second_after);
+            println!("restore: {:?}", restored);
+
+            applied.expect("setting one monitor's wallpaper");
+            assert_eq!(
+                first_after, first_before,
+                "monitor 0's wallpaper changed; the monitors are not independent"
+            );
+            assert_eq!(
+                second_after.to_lowercase(),
+                copy.to_string_lossy().to_lowercase(),
+                "monitor 1 did not take the image it was given"
+            );
+            restored.expect("restoring the original wallpaper");
+        }
+    }
 
     /// Per-monitor still images hinge on matching the shell's monitor list — which is in no
     /// documented order — against a rectangle. This reads that list without changing anything, so
