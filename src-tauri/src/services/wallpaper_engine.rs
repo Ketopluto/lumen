@@ -289,6 +289,23 @@ fn destroy_surfaces(app: &AppHandle) {
     }
 }
 
+/// Destroys the surfaces and waits for their labels to be free again.
+///
+/// `destroy` is asynchronous: the window is gone but Tauri still holds the label for a moment, and
+/// building a surface with a label that is still registered fails outright. Rebuilding immediately
+/// is exactly what happens when a new wallpaper replaces a playing one, which is why that used to
+/// need stopping the old one first.
+fn destroy_surfaces_and_wait(app: &AppHandle) {
+    destroy_surfaces(app);
+    for _ in 0..100 {
+        if live_windows(app).is_empty() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    log::warn!("live wallpaper windows did not close in time; the next surface may fail to build");
+}
+
 /// Plays `path` on one monitor, or on every monitor when `monitor` is `None`.
 pub fn set_live(app: &AppHandle, path: &str, monitor: Option<usize>) -> Result<(), String> {
     let caps = desktop::capabilities();
@@ -449,7 +466,7 @@ fn apply_live(app: &AppHandle) -> Result<(), String> {
     let reusable = wanted.len() == existing.len() && wanted.iter().all(|label| existing.contains(*label));
 
     if !reusable {
-        destroy_surfaces(app);
+        destroy_surfaces_and_wait(app);
         for (spec, path) in &planned {
             if let Err(e) = build_surface(app, spec, path) {
                 // Keep the assignment: the watchdog retries, e.g. while the desktop restarts.

@@ -31,12 +31,19 @@ pub fn get_watched_folders(db: State<'_, Arc<Database>>) -> Result<Vec<WatchedFo
 }
 
 #[tauri::command]
-pub async fn get_local_images(folder_path: String, recursive: Option<bool>) -> Result<Vec<LocalImage>, String> {
+pub async fn get_local_images(
+    app: tauri::AppHandle,
+    folder_path: String,
+    recursive: Option<bool>,
+) -> Result<Vec<LocalImage>, String> {
     let path = PathBuf::from(&folder_path);
     if !path.is_dir() {
         return Err("Folder not found — it may have been moved or deleted".into());
     }
     let recursive = recursive.unwrap_or(true);
+    // Listing a folder is pointless if its files cannot then be shown: without this the grid and
+    // the preview come up blank, with "asset protocol not configured to allow the path" in the log.
+    let _ = app.asset_protocol_scope().allow_directory(&path, recursive);
     tokio::task::spawn_blocking(move || local::scan_folder(&path, recursive))
         .await
         .map_err(|e| e.to_string())
@@ -44,7 +51,10 @@ pub async fn get_local_images(folder_path: String, recursive: Option<bool>) -> R
 
 /// Path of a small cached thumbnail for a local image.
 #[tauri::command]
-pub async fn get_thumbnail(path: String) -> Result<String, String> {
+pub async fn get_thumbnail(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    // The preview shows the file itself at full size, so that one file has to be readable through
+    // the asset protocol — the thumbnail alone is not enough.
+    let _ = app.asset_protocol_scope().allow_file(&path);
     local::thumbnail(PathBuf::from(path))
         .await
         .map(|p| p.to_string_lossy().to_string())

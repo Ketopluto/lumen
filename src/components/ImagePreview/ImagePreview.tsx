@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { displayTitle, fileSrc, isRemote, SOURCE_LABELS, type Wallpaper } from '../../api';
 import { useThumbSrc } from '../../hooks';
 import { useAppStore } from '../../store/appStore';
@@ -46,7 +47,10 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ items, index, onInde
     return () => window.removeEventListener('keydown', onKey);
   }, [index, items.length, onClose, onIndexChange, wallpaper]);
 
-  return (
+  // Rendered into the body, not into the page. `position: fixed` is measured from the nearest
+  // ancestor that has a transform or an animation, and the pages have both — which is why the
+  // preview used to appear wherever the grid happened to be scrolled to.
+  return createPortal(
     <div className="preview-overlay" onClick={onClose}>
       <div className="preview-content" onClick={(e) => e.stopPropagation()}>
         <button className="preview-close" onClick={onClose} aria-label="Close">
@@ -130,6 +134,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ items, index, onInde
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
