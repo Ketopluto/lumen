@@ -1,3 +1,4 @@
+/* A frame on a contact sheet: it does not lift, tilt or glow. The picture is the event. */
 .wp-card {
   position: relative;
   aspect-ratio: 16 / 9;
@@ -6,17 +7,16 @@
   background: var(--color-bg-tertiary);
   box-shadow: 0 0 0 1px var(--color-border);
   cursor: pointer;
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  transition: box-shadow var(--transition-fast);
 }
 
 .wp-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 0 1px var(--color-border-hover), var(--shadow-lg);
+  box-shadow: 0 0 0 1px var(--color-border-hover);
 }
 
 .wp-card:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-accent), var(--shadow-lg);
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 .wp-card__skeleton {
@@ -48,33 +48,30 @@
   opacity: 1;
 }
 
-.wp-card:hover .wp-card__media {
-  transform: scale(1.04);
-}
+/* No zoom on hover: it crops the picture you are trying to judge. */
 
+/* "Live" is a fact about the file, so it reads as a word rather than a glowing pill. */
 .wp-card__badge {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 0;
+  left: 0;
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  background: rgba(0, 0, 0, 0.55);
+  padding: 3px 7px;
+  background: rgba(0, 0, 0, 0.62);
   color: #fff;
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .wp-card__badge::before {
   content: '';
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: #a24cf2;
-  box-shadow: 0 0 6px #a24cf2;
+  background: #fff;
 }
 
 .wp-card__fav {
@@ -88,7 +85,7 @@
   justify-content: center;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.5);
-  color: #ff6b8b;
+  color: #f2f2f2;
 }
 
 .wp-card__fav svg {
@@ -128,19 +125,20 @@
   gap: 6px;
 }
 
+/* The one action worth emphasis on a card gets the paper fill. */
 .wp-card__set {
   flex: 1;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: var(--color-accent-gradient);
-  color: #fff;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: #f2f2f2;
+  color: #0e0e0e;
   font-size: var(--font-size-sm);
-  font-weight: 600;
-  transition: filter var(--transition-fast);
+  font-weight: var(--font-weight-semibold);
+  transition: background var(--transition-fast);
 }
 
 .wp-card__set:hover {
-  filter: brightness(1.12);
+  background: #fff;
 }
 
 .wp-card__icon {
@@ -166,7 +164,7 @@
 }
 
 .wp-card__icon.is-on {
-  color: #ff6b8b;
+  color: #f2f2f2;
 }
 
 .wp-card__set:focus-visible,

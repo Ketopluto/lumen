@@ -106,3 +106,14 @@
 .monitors__stop:hover {
   color: var(--color-text-primary);
 }
+
+@media (max-width: 820px) {
+  .monitors {
+    padding: var(--space-2);
+  }
+
+  .monitors__detail,
+  .monitors__stop {
+    display: none;
+  }
+}

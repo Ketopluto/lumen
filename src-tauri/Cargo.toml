@@ -1,6 +1,6 @@
 [package]
 name = "lumen"
-version = "4.2.2"
+version = "4.2.3"
 description = "A lightweight live wallpaper manager"
 authors = ["Ketopluto"]
 edition = "2021"

@@ -10,9 +10,11 @@
 .filter-group { display:flex; flex-direction:column; gap:var(--space-2); }
 .filter-label { font-size:var(--font-size-xs); font-weight:var(--font-weight-semibold); color:var(--color-text-tertiary); text-transform:uppercase; letter-spacing:var(--letter-spacing-wider); }
 .filter-chips { display:flex; gap:var(--space-1); flex-wrap:wrap; }
-.filter-chip { padding:var(--space-1) var(--space-3); border-radius:var(--radius-full); font-size:var(--font-size-sm); font-weight:var(--font-weight-medium); color:var(--color-text-secondary); background:var(--color-surface); border:1px solid var(--color-border); transition:all var(--transition-fast); cursor:pointer; white-space:nowrap; }
-.filter-chip:hover { background:var(--color-surface-hover); color:var(--color-text-primary); border-color:var(--color-border-hover); }
-.filter-chip--active { background:var(--color-accent-subtle); color:var(--color-accent); border-color:var(--color-border-accent); }
+/* Squared off and quiet: a filter is a switch, not a badge. The chosen one is filled, so which
+   is on is readable at a glance instead of inferred from a tint. */
+.filter-chip { padding:3px var(--space-3); border-radius:var(--radius-sm); font-size:var(--font-size-sm); font-weight:var(--font-weight-medium); color:var(--color-text-secondary); background:transparent; border:1px solid var(--color-border); transition:background var(--transition-fast),color var(--transition-fast),border-color var(--transition-fast); cursor:pointer; white-space:nowrap; }
+.filter-chip:hover { background:transparent; color:var(--color-text-primary); border-color:var(--color-border-hover); }
+.filter-chip--active { background:var(--color-text-primary); color:var(--color-text-inverse); border-color:var(--color-text-primary); }
 .filter-chip:focus-visible { outline:2px solid var(--color-accent); outline-offset:1px; }
 
 /* Buttons shared across pages */

@@ -29,7 +29,7 @@
 }
 
 .btn:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: translateY(1px);
 }
 
 .btn:disabled {
@@ -38,22 +38,19 @@
 }
 
 .btn--primary {
-  background: var(--color-accent-gradient);
-  color: #fff;
+  background: var(--color-text-primary);
+  color: var(--color-text-inverse);
   border-color: transparent;
-  box-shadow: var(--shadow-accent);
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: var(--color-accent-gradient-hover);
-  box-shadow: var(--shadow-accent-lg);
+  background: #fff;
 }
 
 .btn--secondary {
-  background: var(--glass-bg);
+  background: transparent;
   color: var(--color-text-primary);
-  border-color: var(--color-border);
-  backdrop-filter: blur(12px);
+  border-color: var(--color-border-hover);
 }
 
 .btn--secondary:hover:not(:disabled) {

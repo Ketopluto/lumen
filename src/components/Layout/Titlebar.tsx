@@ -4,7 +4,15 @@ import { capabilities } from '../../platform';
 import './Titlebar.css';
 
 export const Titlebar: React.FC = () => {
-  const appWindow = getCurrentWindow();
+  // Resolved on use, not on render: outside Tauri (vite dev in a plain browser) this throws, and
+  // a titlebar that cannot find its window should not take the whole app down with it.
+  const window = () => {
+    try {
+      return getCurrentWindow();
+    } catch {
+      return null;
+    }
+  };
 
   return (
     <div className="titlebar" data-tauri-drag-region id="titlebar">
@@ -35,7 +43,7 @@ export const Titlebar: React.FC = () => {
       <div className="titlebar__controls">
         <button
           className="titlebar__btn titlebar__btn--minimize"
-          onClick={() => appWindow.minimize()}
+          onClick={() => window()?.minimize()}
           id="btn-minimize"
           aria-label="Minimize"
         >
@@ -43,7 +51,7 @@ export const Titlebar: React.FC = () => {
         </button>
         <button
           className="titlebar__btn titlebar__btn--maximize"
-          onClick={() => appWindow.toggleMaximize()}
+          onClick={() => window()?.toggleMaximize()}
           id="btn-maximize"
           aria-label="Maximize"
         >
@@ -51,7 +59,7 @@ export const Titlebar: React.FC = () => {
         </button>
         <button
           className="titlebar__btn titlebar__btn--close"
-          onClick={() => appWindow.close()}
+          onClick={() => window()?.close()}
           id="btn-close"
           aria-label="Close"
         >
