@@ -51,8 +51,9 @@ jobs:
     name: ${{ matrix.name }}
     needs: draft
     runs-on: ${{ matrix.os }}
-    # macOS is beta and must never hold back a Windows or Linux release — a retired runner image
-    # already blocked two of them.
+    # No single platform can hold back a release: a flaky tool download on one runner used to
+    # mean nobody got anything. What a release must have is checked before publishing instead,
+    # and a platform that missed out is named so its build can be re-run into the same release.
     continue-on-error: ${{ matrix.optional || false }}
     strategy:
       fail-fast: false
@@ -76,6 +77,7 @@ jobs:
           - name: Linux (x64)
             os: ubuntu-22.04
             args: ''
+            optional: true
 
     steps:
       - uses: actions/checkout@v4
@@ -110,6 +112,16 @@ jobs:
             gstreamer1.0-libav
 
       - run: npm ci
+
+      # Tauri fetches its bundler tools (NSIS, AppImage tooling) at bundle time, and that download
+      # has 504'd on three of the last four releases. Cached, it happens once per runner.
+      - name: Cache the bundler tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/tauri
+            ~/AppData/Local/tauri
+          key: tauri-bundler-${{ runner.os }}-v1
 
       - uses: tauri-apps/tauri-action@v0
         env:
@@ -156,6 +168,9 @@ jobs:
           echo "$assets" | sed 's/^/  /'
           for required in "Lumen_${version}_x64-setup.exe" "Lumen_${version}_x64_portable.exe"; do
             echo "$assets" | grep -qx "$required" || { echo "::error::missing $required"; exit 1; }
+          done
+          for optional in "Lumen_${version}_amd64.deb" "Lumen_${version}_aarch64.dmg" "Lumen_${version}_x64.dmg"; do
+            echo "$assets" | grep -qx "$optional" || echo "::warning::$optional is missing — re-run that platform's job to add it to this release"
           done
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,url --jq '"published: draft=\(.isDraft) \(.url)"'
