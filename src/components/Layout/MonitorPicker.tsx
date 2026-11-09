@@ -97,9 +97,13 @@ interface ScreenProps {
   box: React.CSSProperties;
 }
 
+/** A video frame cannot be shown in an <img>, and the still underneath it is not what you see. */
+const VIDEO = /\.(mp4|webm|mkv|mov|avi|m4v)$/i;
+
 const Screen: React.FC<ScreenProps> = ({ label, name, size, primary, live, still, selected, onSelect, box }) => {
   // What is on the screen right now: the live wallpaper wins, because that is what is moving.
-  const thumb = usePathThumb(live ?? still);
+  // A playing video shows as an empty screen with the dot rather than as the wrong picture.
+  const thumb = usePathThumb(live && VIDEO.test(live) ? undefined : (live ?? still));
   const fileName = (path?: string) => path?.split(/[\\/]/).pop();
 
   return (

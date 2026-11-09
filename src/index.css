@@ -413,6 +413,8 @@ body {
 .titlebar__title,
 .browse__tab,
 .dock__title,
+.preview-title,
+.settings-about__name,
 .settings-section__title {
   font-family: var(--font-display);
   font-stretch: var(--display-width);
