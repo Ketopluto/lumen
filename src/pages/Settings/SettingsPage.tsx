@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import Toggle from '../../components/common/Toggle';
-import { api, applyTheme, errorText, type Settings, type Theme } from '../../api';
+import { api, applyTheme, errorText, type Settings, type Theme, type UpdateStatus } from '../../api';
+import { listen } from '@tauri-apps/api/event';
 import { capabilities, osName, startupLabel, trayName, trayNote } from '../../platform';
 import { useUIStore } from '../../store/uiStore';
 import './SettingsPage.css';
@@ -20,6 +21,9 @@ export const SettingsPage: React.FC = () => {
   const [saved, setSaved] = useState<Settings | null>(null);
   const [liveActive, setLiveActive] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [update, setUpdate] = useState<UpdateStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
     api
@@ -30,7 +34,35 @@ export const SettingsPage: React.FC = () => {
       })
       .catch((e) => addToast({ type: 'error', title: "Couldn't load settings", message: errorText(e) }));
     api.liveStatus().then((s) => setLiveActive(!!s.path)).catch(() => {});
+    api.getUpdateStatus().then(setUpdate).catch(() => {});
+    // The startup check and an install both report through this, so the panel follows along.
+    const unlisten = listen<UpdateStatus>('update-status', (e) => setUpdate(e.payload));
+    return () => {
+      unlisten.then((f) => f());
+    };
   }, [addToast]);
+
+  const refreshUpdate = async () => {
+    setChecking(true);
+    try {
+      setUpdate(await api.getUpdateStatus());
+    } catch (e) {
+      addToast({ type: 'error', title: "Couldn't check for updates", message: errorText(e) });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const installUpdate = async () => {
+    setInstalling(true);
+    try {
+      // Lumen exits to let the installer replace it, and starts again by itself.
+      await api.installUpdate();
+    } catch (e) {
+      setInstalling(false);
+      addToast({ type: 'error', title: 'Update failed', message: errorText(e), duration: 8000 });
+    }
+  };
 
   if (!settings) return null;
 
@@ -66,6 +98,15 @@ export const SettingsPage: React.FC = () => {
     await api.stopLive().catch(console.error);
     setLiveActive(false);
     addToast({ type: 'info', title: 'Live wallpaper stopped', duration: 2000 });
+  };
+
+  const updateDescription = () => {
+    if (!update) return 'Checking the latest release…';
+    if (update.message) return update.message;
+    if (update.state === 'failed') return 'The last update did not install.';
+    if (update.available) return `Version ${update.latest} is available.`;
+    if (update.latest) return `Up to date — ${update.latest} is the latest release.`;
+    return 'Could not reach the release page.';
   };
 
   const row = (label: string, desc: string, control: React.ReactNode) => (
@@ -227,10 +268,24 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       <div className="settings-section glass-panel">
+        <h2 className="settings-section__title">Updates</h2>
+        {row(
+          update ? `Lumen ${update.current}` : 'Lumen',
+          updateDescription(),
+          update?.installable ? (
+            <button className="btn btn--primary" onClick={installUpdate} disabled={installing}>
+              {installing ? 'Installing…' : `Install ${update.latest}`}
+            </button>
+          ) : (
+            <button className="btn btn--glass" onClick={refreshUpdate} disabled={checking}>
+              {checking ? 'Checking…' : 'Check now'}
+            </button>
+          ),
+        )}
         <div className="settings-about">
-          <p className="settings-about__name gradient-text">Lumen</p>
-          <p className="settings-about__version">Version 3.0.1</p>
-          <p className="settings-about__desc">A lightweight live wallpaper manager.</p>
+          <p className="settings-about__desc">
+            Lumen checks for a newer release when it starts and installs it on its own.
+          </p>
         </div>
       </div>
 

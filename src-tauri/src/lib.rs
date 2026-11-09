@@ -143,6 +143,8 @@ pub fn run() {
             commands::sources::search,
             commands::platform::get_capabilities,
             commands::platform::get_monitors,
+            commands::updates::get_update_status,
+            commands::updates::install_update,
             commands::wallpaper::clear_monitor_wallpaper,
             commands::media::set_media_support,
             commands::favorites::add_favorite,
@@ -271,6 +273,9 @@ pub fn run() {
                 });
             }
             wallpaper_engine::spawn_pause_monitor(app.handle().clone());
+
+            // Keep up with the latest release. Quiet unless there is genuinely something newer.
+            services::updater::spawn_startup_check(app.handle());
 
             log::info!("Lumen started");
             Ok(())

@@ -6,4 +6,5 @@ pub mod platform;
 pub mod scheduler;
 pub mod settings;
 pub mod sources;
+pub mod updates;
 pub mod wallpaper;

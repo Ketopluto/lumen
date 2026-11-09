@@ -12,6 +12,9 @@ pub fn get_capabilities() -> Capabilities {
 pub struct MonitorRow {
     pub index: usize,
     pub name: String,
+    /// Physical position, so the UI can draw the monitors where they really are.
+    pub x: i32,
+    pub y: i32,
     pub width: u32,
     pub height: u32,
     pub primary: bool,
@@ -27,6 +30,8 @@ pub fn get_monitors(app: tauri::AppHandle) -> Vec<MonitorRow> {
         .map(|(index, monitor)| MonitorRow {
             index,
             name: monitor.name,
+            x: monitor.bounds.0,
+            y: monitor.bounds.1,
             width: monitor.bounds.2,
             height: monitor.bounds.3,
             primary: monitor.primary,

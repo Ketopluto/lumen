@@ -113,9 +113,24 @@ export interface SlideshowConfig {
 export interface Monitor {
   index: number;
   name: string;
+  /** Physical position, for drawing the monitors where they really are. */
+  x: number;
+  y: number;
   width: number;
   height: number;
   primary: boolean;
+}
+
+export interface UpdateStatus {
+  current: string;
+  latest: string | null;
+  available: boolean;
+  /** Lumen can install it itself on this platform. */
+  installable: boolean;
+  release_url: string | null;
+  /** current | available | downloading | installing | failed | unknown */
+  state: string;
+  message: string | null;
 }
 
 export interface LiveStatus {
@@ -134,6 +149,8 @@ export const api = {
   setWallpaper: (wallpaper: Wallpaper, fitMode?: FitMode, monitor?: number | null) =>
     invoke<string>('set_wallpaper', { wallpaper, fitMode, monitor: monitor ?? null }),
   getMonitors: () => invoke<Monitor[]>('get_monitors'),
+  getUpdateStatus: () => invoke<UpdateStatus>('get_update_status'),
+  installUpdate: () => invoke<void>('install_update'),
   clearMonitor: (monitor: number) => invoke<void>('clear_monitor_wallpaper', { monitor }),
   downloadWallpaper: (wallpaper: Wallpaper) => invoke<string>('download_wallpaper', { wallpaper }),
   stopLive: () => invoke<void>('stop_live_wallpaper'),

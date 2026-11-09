@@ -51,6 +51,9 @@ jobs:
     name: ${{ matrix.name }}
     needs: draft
     runs-on: ${{ matrix.os }}
+    # macOS is beta and must never hold back a Windows or Linux release — a retired runner image
+    # already blocked two of them.
+    continue-on-error: ${{ matrix.optional || false }}
     strategy:
       fail-fast: false
       matrix:
@@ -64,10 +67,12 @@ jobs:
             os: macos-latest
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin
+            optional: true
           - name: macOS (Intel)
             os: macos-latest
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin
+            optional: true
           - name: Linux (x64)
             os: ubuntu-22.04
             args: ''
@@ -113,6 +118,15 @@ jobs:
           releaseId: ${{ needs.draft.outputs.release_id }}
           args: ${{ matrix.args }}
 
+      # Nothing is trusted to have worked just because a step exited zero — today's silent
+      # installer failure came from exactly that assumption.
+      - name: The build must have produced an installer
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -l src-tauri/target/release/bundle/nsis/*.exe
+
       # The bare executable, for people who would rather not run an installer.
       - name: Upload the portable Windows build
         if: runner.os == 'Windows'
@@ -124,3 +138,24 @@ jobs:
           version="${TAG#v}"
           cp src-tauri/target/release/lumen.exe "Lumen_${version}_x64_portable.exe"
           gh release upload "$TAG" "Lumen_${version}_x64_portable.exe" --clobber
+
+  publish:
+    name: Publish the release
+    needs: [draft, build]
+    runs-on: ubuntu-22.04
+    steps:
+      # Every platform that is allowed to block has finished, so this is the latest release from
+      # now on. Nothing is left as a draft: a draft is invisible to the app's update check.
+      - name: Check what was uploaded, then publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          assets=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          echo "$assets" | sed 's/^/  /'
+          for required in "Lumen_${version}_x64-setup.exe" "Lumen_${version}_x64_portable.exe"; do
+            echo "$assets" | grep -qx "$required" || { echo "::error::missing $required"; exit 1; }
+          done
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,url --jq '"published: draft=\(.isDraft) \(.url)"'

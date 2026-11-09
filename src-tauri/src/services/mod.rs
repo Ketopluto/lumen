@@ -15,5 +15,6 @@ pub mod safebooru;
 pub mod scheduler;
 pub mod selftest;
 pub mod unsplash;
+pub mod updater;
 pub mod wallhaven;
 pub mod wallpaper_engine;

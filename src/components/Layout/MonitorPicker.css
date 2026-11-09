@@ -13,17 +13,63 @@
   letter-spacing: 0.04em;
 }
 
-.monitors__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
+/* The monitors drawn to scale, so screen 2 is wherever screen 2 actually is. */
+.monitors__stage {
+  position: relative;
+  width: 100%;
 }
 
-.monitors__chip {
-  min-width: 28px;
-  padding: 3px 8px;
+.monitors__screen {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1.5px solid var(--color-border);
   border-radius: var(--radius-sm);
+  background: var(--color-surface-2, rgba(127, 127, 127, 0.12));
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+/* A hair of inset so touching monitors read as two rectangles, not one. */
+.monitors__screen + .monitors__screen {
+  margin-left: 1px;
+}
+
+.monitors__screen:hover {
+  border-color: var(--color-accent);
+  color: var(--color-text-primary);
+}
+
+.monitors__screen--on {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 24%, transparent);
+  color: var(--color-text-primary);
+}
+
+.monitors__number {
+  font-weight: var(--font-weight-medium, 500);
+}
+
+/* Something is playing on this screen. */
+.monitors__dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+.monitors__all {
+  align-self: stretch;
+  padding: 3px 8px;
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
@@ -31,12 +77,12 @@
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
 }
 
-.monitors__chip:hover {
-  border-color: var(--color-border-strong, var(--color-border));
+.monitors__all:hover {
+  border-color: var(--color-accent);
   color: var(--color-text-primary);
 }
 
-.monitors__chip--on {
+.monitors__all--on {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: #fff;
