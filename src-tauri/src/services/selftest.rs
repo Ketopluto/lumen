@@ -157,13 +157,50 @@ pub fn run(app: &AppHandle) -> i32 {
     };
 
     report_line(&serde_json::to_string_pretty(&report).unwrap_or_else(|e| e.to_string()));
-    if report.placed && report.visible {
+    let placed = report.placed && report.visible;
+    if placed {
         report_line("passed: the surface is on the desktop");
-        0
     } else {
         report_line("failed: the surface is not where a wallpaper belongs");
+    }
+    if sweep_test(app) != 0 {
+        return 1;
+    }
+    i32::from(!placed)
+}
+
+/// The surface on screen is now treated as one nobody owns, and swept. This is the path that a
+/// black desktop depends on: a shell-parented window whose webview has gone is invisible to
+/// Tauri, so only an explicit sweep of the desktop's own window tree can close it.
+#[cfg(target_os = "windows")]
+fn sweep_test(app: &AppHandle) -> i32 {
+    let closed = match desktop::on_main(app, || desktop::sweep_orphan_surfaces(&[])) {
+        Ok(closed) => closed,
+        Err(e) => {
+            report_line(&format!("failed: the main thread never answered ({})", e));
+            return 1;
+        }
+    };
+    if closed.is_empty() {
+        report_line("failed: the orphan sweep found nothing to close");
+        return 1;
+    }
+    let left = match desktop::on_main(app, || desktop::sweep_orphan_surfaces(&[])) {
+        Ok(left) => left,
+        Err(_) => return 1,
+    };
+    if left.is_empty() {
+        report_line(&format!("passed: the orphan sweep closed {} surface(s)", closed.len()));
+        0
+    } else {
+        report_line("failed: a swept surface is still on the desktop");
         1
     }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn sweep_test(_app: &AppHandle) -> i32 {
+    0
 }
 
 /// Builds every planned surface, attaches each, and reports where they landed. A wallpaper per

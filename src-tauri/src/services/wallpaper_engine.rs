@@ -287,7 +287,39 @@ fn destroy_surfaces(app: &AppHandle) {
     for window in live_windows(app) {
         let _ = window.destroy();
     }
+    sweep_orphan_surfaces(app);
 }
+
+/// Closes any surface the desktop is still showing that Tauri no longer lists.
+///
+/// This is how a black desktop happens: the shell owns a live surface once it is re-parented, so
+/// when the webview inside dies — or the monitor it was pinned to is unplugged — Tauri forgets the
+/// window while the shell keeps drawing the empty frame over the wallpaper. `destroy_surfaces`
+/// only ever reached the windows Tauri still knew about, so that frame stayed until the next
+/// logon. Whatever is swept here was showing nothing, so the wallpaper underneath is repainted.
+#[cfg(target_os = "windows")]
+fn sweep_orphan_surfaces(app: &AppHandle) {
+    let keep: Vec<isize> = live_windows(app)
+        .iter()
+        .filter_map(|window| window.hwnd().ok())
+        .map(|hwnd| hwnd.0 as isize)
+        .collect();
+    let app = app.clone();
+    desktop::on_main_async(&app.clone(), move || {
+        let closed = desktop::sweep_orphan_surfaces(&keep);
+        if closed.is_empty() {
+            return;
+        }
+        log::warn!(
+            "closed {} live surface(s) the desktop was still showing after Tauri lost them",
+            closed.len()
+        );
+        redraw(&app);
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn sweep_orphan_surfaces(_app: &AppHandle) {}
 
 /// Destroys the surfaces and waits for their labels to be free again.
 ///
@@ -455,6 +487,7 @@ fn apply_live(app: &AppHandle) -> Result<(), String> {
         // left playing: a wallpaper spanning both monitors outliving a per-monitor choice is
         // exactly how a stale surface looks like a zoomed one.
         destroy_surfaces(app);
+        redraw(app);
         return Err("No display to put a wallpaper on".into());
     }
 
@@ -592,8 +625,11 @@ pub fn spawn_pause_monitor(app: AppHandle) {
                 missing_ticks = 0;
                 idle_ticks += 1;
                 // A wallpaper saved earlier may not have started yet (at logon the desktop or a
-                // cloud folder can lag behind), so keep trying every ~10s.
+                // cloud folder can lag behind), so keep trying every ~10s. The same tick sweeps up
+                // a surface the desktop is still showing after Tauri lost it, which is the one
+                // case nothing else would ever notice: no assignment, no windows, black desktop.
                 if idle_ticks.is_multiple_of(5) {
+                    sweep_orphan_surfaces(&app);
                     restore_live(&app);
                 }
                 continue;

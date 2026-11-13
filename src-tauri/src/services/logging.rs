@@ -18,7 +18,25 @@ pub fn init() {
     if std::fs::metadata(&path).map(|m| m.len() > MAX_BYTES).unwrap_or(false) {
         let _ = std::fs::remove_file(&path);
     }
-    let Ok(file) = OpenOptions::new().create(true).append(true).open(&path) else {
+    // At logon the file can be held for a moment by a backup or antivirus scanner, and a single
+    // failed open used to cost the whole run its log — the one run you most want to read, since
+    // that is the run nobody was watching. Retry, then fall back to a file of our own.
+    let mut file = None;
+    for attempt in 0..5 {
+        match OpenOptions::new().create(true).append(true).open(&path) {
+            Ok(opened) => {
+                file = Some(opened);
+                break;
+            }
+            Err(_) if attempt < 4 => std::thread::sleep(std::time::Duration::from_millis(150)),
+            Err(_) => {}
+        }
+    }
+    let file = file.or_else(|| {
+        let fallback = dir.join(format!("lumen-{}.log", std::process::id()));
+        OpenOptions::new().create(true).append(true).open(fallback).ok()
+    });
+    let Some(file) = file else {
         return;
     };
     let logger: &'static FileLogger = Box::leak(Box::new(FileLogger { file: Mutex::new(file) }));

@@ -56,6 +56,8 @@ const _CONTRACT: () = {
     let _: fn(&AppHandle) -> Vec<MonitorInfo> = imp::monitor_layout;
     #[cfg(target_os = "windows")]
     let _: fn(&[MonitorTarget]) -> std::collections::BTreeMap<usize, String> = imp::current_monitor_wallpapers;
+    #[cfg(target_os = "windows")]
+    let _: fn(&[isize]) -> Vec<isize> = imp::sweep_orphan_surfaces;
 };
 
 /// Computed once: reading the session type and monitor layout is not free.
@@ -150,6 +152,13 @@ pub fn current_monitor_wallpapers(app: &AppHandle) -> std::collections::BTreeMap
             .map(|monitor| (monitor.index, path.clone()))
             .collect()
     }
+}
+
+/// Windows only: closes surfaces the desktop is still showing but Tauri has lost track of, and
+/// reports what it closed. See the implementation for why they can exist at all. Main thread only.
+#[cfg(target_os = "windows")]
+pub fn sweep_orphan_surfaces(keep: &[isize]) -> Vec<isize> {
+    imp::sweep_orphan_surfaces(keep)
 }
 
 /// Windows only, read-only: the shell's own monitor list, for diagnosing a still image that

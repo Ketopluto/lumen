@@ -247,6 +247,82 @@ unsafe fn keep_fitted(raw: isize, bounds: Option<(i32, i32, u32, u32)>) {
     }
 }
 
+/// Surfaces of ours that the desktop is still showing but Tauri no longer knows about, destroyed.
+///
+/// A live surface is re-parented into Progman or a WorkerW, which means the shell owns it: if the
+/// webview inside it dies, or the monitor it was pinned to is unplugged, Tauri drops the window
+/// from its own list while the shell keeps drawing the empty frame. Nothing is left that would
+/// close it, and an empty surface paints black — a black desktop that survives every restart of
+/// the wallpaper. Anything in the desktop's window tree that belongs to this process, carries the
+/// Tauri window class, and is not in `keep` is one of those.
+///
+/// Main thread only: `DestroyWindow` refuses to work on a window another thread created.
+pub fn sweep_orphan_surfaces(keep: &[isize]) -> Vec<isize> {
+    let mut scan = OrphanScan {
+        pid: std::process::id(),
+        keep: keep.to_vec(),
+        found: Vec::new(),
+    };
+    unsafe {
+        let mut containers: Vec<HWND> = Vec::new();
+        if let Ok(progman) = FindWindowW(w!("Progman"), PCWSTR::null()) {
+            containers.push(progman);
+        }
+        // Older Windows parks the wallpaper WorkerW at the top level, beside Progman.
+        let mut workers: Vec<HWND> = Vec::new();
+        let _ = EnumWindows(Some(collect_workers), LPARAM(&mut workers as *mut Vec<HWND> as isize));
+        containers.extend(workers);
+
+        for container in containers {
+            let _ = EnumChildWindows(
+                container,
+                Some(collect_orphans),
+                LPARAM(&mut scan as *mut OrphanScan as isize),
+            );
+        }
+        for raw in &scan.found {
+            let _ = DestroyWindow(HWND(*raw as *mut c_void));
+        }
+    }
+    scan.found
+}
+
+struct OrphanScan {
+    pid: u32,
+    keep: Vec<isize>,
+    found: Vec<isize>,
+}
+
+unsafe extern "system" fn collect_workers(top: HWND, out: LPARAM) -> BOOL {
+    let mut class = [0u16; 32];
+    let read = GetClassNameW(top, &mut class);
+    if String::from_utf16_lossy(&class[..read.max(0) as usize]) == "WorkerW" {
+        (*(out.0 as *mut Vec<HWND>)).push(top);
+    }
+    TRUE
+}
+
+unsafe extern "system" fn collect_orphans(hwnd: HWND, out: LPARAM) -> BOOL {
+    let scan = &mut *(out.0 as *mut OrphanScan);
+    let mut pid = 0u32;
+    let _ = GetWindowThreadProcessId(hwnd, Some(&mut pid));
+    if pid != scan.pid {
+        return TRUE;
+    }
+    let mut class = [0u16; 64];
+    let read = GetClassNameW(hwnd, &mut class);
+    // Tauri's own window class. The main window carries it too, but it is never a child of the
+    // desktop, so it is never enumerated here.
+    if String::from_utf16_lossy(&class[..read.max(0) as usize]) != "Tauri Window" {
+        return TRUE;
+    }
+    let raw = hwnd.0 as isize;
+    if !scan.keep.contains(&raw) {
+        scan.found.push(raw);
+    }
+    TRUE
+}
+
 /// Finds the WorkerW that follows the top-level window hosting SHELLDLL_DefView.
 unsafe extern "system" fn find_worker(top: HWND, out: LPARAM) -> BOOL {
     if FindWindowExW(top, HWND::default(), w!("SHELLDLL_DefView"), PCWSTR::null()).is_ok() {
